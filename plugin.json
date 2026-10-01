@@ -1,0 +1,8 @@
+{
+  "id": "music",
+  "name": "Music",
+  "description": "Local music player, with the phone as a remote.",
+  "icon": "Music",
+  "version": "1.0.0",
+  "minDeck": "0.7.0"
+}
