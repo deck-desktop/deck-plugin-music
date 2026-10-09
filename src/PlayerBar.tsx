@@ -41,7 +41,7 @@ export default function PlayerBar() {
     // Re-read when Settings writes the config (the watcher emits config-changed) so
     // switching placement updates live, without a restart.
     let un: (() => void) | undefined;
-    listen("config-changed", load).then((u) => (un = u));
+    listen<string[]>("config-changed", (e) => { if (e.payload.includes("settings")) load(); }).then((u) => (un = u));
     return () => un?.();
   }, []);
 

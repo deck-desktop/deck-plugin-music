@@ -26,13 +26,19 @@ const emit = () => { state = { ...state }; subs.forEach((f) => f()); };
 const setQueue = (fn: (q: QueueRow[]) => QueueRow[]) => { state.queue = fn(state.queue); emit(); };
 
 // Single, always-on progress listener — updates the matching row live.
-listen<DownloadProgress>("download-progress", (e) => {
+const unProgress = listen<DownloadProgress>("download-progress", (e) => {
   const p = e.payload;
   setQueue((rs) => rs.map((r) => r.id === p.id
     ? { ...r, pct: p.pct || r.pct, speed: p.speed, eta: p.eta, title: p.title || r.title,
         plIndex: p.plIndex || r.plIndex, plCount: p.plCount || r.plCount, plTitle: p.plTitle || r.plTitle, status: "downloading" }
     : r));
-}).catch(() => {});
+});
+unProgress.catch(() => {});
+
+/** Stop listening. Deck calls this (through the plugin's `dispose`) before a reload re-imports it. */
+export function disposeDownloads() {
+  void unProgress.then((un) => un()).catch(() => {});
+}
 
 async function appendHistory(item: DownloadItem) {
   let h: DownloadItem[] = [];

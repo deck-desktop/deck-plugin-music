@@ -38,6 +38,13 @@ const nameFromPath = (p: string) => p.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audio = useRef<HTMLAudioElement | null>(null);
   if (!audio.current) audio.current = new Audio();
+  // An Audio element is not in the DOM, so unmounting does not stop it. A plugin reload mounts a
+  // fresh provider with its own element, which restores the queue and plays, while the old one
+  // would play on with nothing left to pause it. Stopping it also releases the stream.
+  useEffect(() => () => {
+    const a = audio.current;
+    if (a) { a.pause(); a.removeAttribute("src"); a.load(); }
+  }, []);
 
   const [queue, setQueue] = useState<Track[]>([]);
   const [index, setIndex] = useState(0);
@@ -100,7 +107,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const a = audio.current!;
     const onTime = () => setPosition(a.currentTime);
     const onDur = () => setDuration(a.duration || 0);
-    const onEnd = () => nextRef.current(false); // auto-advance respects repeat mode
+    const onEnd = () => latest.current.next(false); // auto-advance respects repeat mode
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     a.addEventListener("timeupdate", onTime);
@@ -142,13 +149,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (a.currentTime > 3) { a.currentTime = 0; return; } // restart current if >3s in
     setIndex((i) => (i - 1 + queue.length) % queue.length);
   };
-  // next() ref so the "ended" listener always calls the latest closure.
-  const nextRef = useRef(next); nextRef.current = next;
-
   const seek = (t: number) => { audio.current!.currentTime = t; setPosition(t); };
   const setVolume = (v: number) => { audio.current!.volume = v; setVol(v); };
   const cycleRepeat = () => setRepeat((r) => r === "off" ? "all" : r === "all" ? "one" : "off");
   const clear = () => { setQueue([]); setIndex(0); };
+
+  // The handlers above close over this render's queue/index/repeat, so they are new functions
+  // every render — and a position tick (timeupdate, ~4/s) is a render. Consumers and listeners get
+  // these wrappers instead: created once, always calling the latest closure through the ref.
+  const latest = useRef({ play, toggle, next, prev, seek, setVolume, cycleRepeat, clear });
+  latest.current = { play, toggle, next, prev, seek, setVolume, cycleRepeat, clear };
+  const actions = useMemo(() => ({
+    play: (tracks: Track[], startAt?: number) => latest.current.play(tracks, startAt),
+    toggle: () => latest.current.toggle(),
+    next: () => latest.current.next(),
+    prev: () => latest.current.prev(),
+    seek: (t: number) => latest.current.seek(t),
+    setVolume: (v: number) => latest.current.setVolume(v),
+    cycleRepeat: () => latest.current.cycleRepeat(),
+    clear: () => latest.current.clear(),
+  }), []);
 
   // OS media-key / overlay / tray → act on playback.
   useEffect(() => {
@@ -157,26 +177,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       switch (e.payload) {
         case "play": audio.current!.play().catch(() => {}); break;
         case "pause": audio.current!.pause(); break;
-        case "toggle": toggle(); break;
-        case "next": nextRef.current(); break;
-        case "previous": prev(); break;
-        case "stop": audio.current!.pause(); clear(); break;
+        case "toggle": actions.toggle(); break;
+        case "next": actions.next(); break;
+        case "previous": actions.prev(); break;
+        case "stop": audio.current!.pause(); actions.clear(); break;
       }
     }).then((u) => (un = u));
     return () => un?.();
-    /* eslint-disable-next-line */
-  }, [queue, index]);
+  }, [actions]);
 
-  // Memoised: this object was rebuilt on every render, so every consumer re-rendered even when
-  // nothing it reads had changed. The callbacks below are redefined each render, so they are
-  // deliberately part of the dependency list rather than pretended to be stable.
+  // Memoised on state and the stable actions only, so a position tick (which re-renders this
+  // provider) leaves the value — and so every usePlayer consumer — alone. setShuffle is a state
+  // setter, stable already.
   const value = useMemo(
-    () => ({
-      queue, index, playing, duration, volume, shuffle, repeat, current,
-      play, toggle, next, prev, seek, setVolume, setShuffle, cycleRepeat, clear,
-    }),
-    [queue, index, playing, duration, volume, shuffle, repeat, current,
-     play, toggle, next, prev, seek, setVolume, setShuffle, cycleRepeat, clear],
+    () => ({ queue, index, playing, duration, volume, shuffle, repeat, current, setShuffle, ...actions }),
+    [queue, index, playing, duration, volume, shuffle, repeat, current, actions],
   );
 
   return (

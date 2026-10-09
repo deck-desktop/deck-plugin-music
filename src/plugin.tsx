@@ -37,3 +37,5 @@ export const Bar = PlayerBar;
 
 // Rendered by Deck in Settings -> Plugins, under this plugin name.
 export const Settings = MusicSettings;
+/** Called by Deck before a reload re-imports this plugin, so the old copy stops listening. */
+export { disposeDownloads as dispose } from "./downloads";
