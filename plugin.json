@@ -1,7 +1,7 @@
 {
   "id": "music",
   "name": "Music",
-  "description": "Local music player, with the phone as a remote.",
+  "description": "A local music player for your own folders, with YouTube downloads and suggestions.",
   "icon": "Music",
   "version": "1.1.0",
   "minDeck": "0.22.0"
