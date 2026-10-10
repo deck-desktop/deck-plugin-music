@@ -31,11 +31,10 @@ Nothing music-specific except two native pieces that no amount of JavaScript rep
 - `audio_tags` — ID3 tags and cover art (lofty)
 - `media_session` — the Windows media keys and the OS now-playing panel (souvlaki)
 
-Everything else is generic: `vault_resolve`/`vault_relativize` for paths the phone can read,
-`proc_stream` for running yt-dlp, `fs_list`, `fs_open`, `dirs_download`, and config read/write.
+Everything else is generic: `proc_stream` for running yt-dlp, `fs_list`, `fs_open`, `dirs_download`, and config read/write.
 
-## Phone compatibility
+## Where the music is
 
-`music-library`, `favorites` and `playlists` keep the config keys and the vault-relative path
-format they have always had. The phone app reads those directly, so this port changes who writes
-them, not what they are.
+Wherever you keep it. **Add folder** in the sidebar adds any folder, and downloads go into the one
+you pick. Paths are stored as full paths. A library that stored them
+relative to the Obsidian vault is converted once, when Deck starts.

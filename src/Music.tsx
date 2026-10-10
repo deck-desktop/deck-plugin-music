@@ -6,7 +6,7 @@ import {
   Download, X, Loader2, Check, AlertTriangle, FolderOpen, Shuffle, Clock, Disc3,
   Sparkles, RotateCw,
 } from "lucide-react";
-import {readLibrary, writeLibrary, readTrackMeta, pickFolder, readDownloads, revealInFolder, convertFileSrc, defaultDownloadDir, getVaultRoot, configRead, configWrite, readMusicSuggestions, readMusicTaste, writeMusicTaste, type MusicLibrary, type MusicFolder, type MusicPlaylist, type TrackMeta, type DownloadItem, type SongSuggestion, type MusicSuggestions} from "../shim/bridge.js";
+import {readLibrary, writeLibrary, readTrackMeta, pickFolder, readDownloads, revealInFolder, convertFileSrc, defaultDownloadDir, configRead, configWrite, readMusicSuggestions, readMusicTaste, writeMusicTaste, type MusicLibrary, type MusicFolder, type MusicPlaylist, type TrackMeta, type DownloadItem, type SongSuggestion, type MusicSuggestions} from "../shim/bridge.js";
 import { listAudioFiles, musicDiscover, resolveStreamUrl, musicThumbs } from "./music-rust";
 import { useDownloads, enqueue, cancelOne, cancelEverything, retryOne, retryFailed, onDownloadDone } from "./downloads";
 import { usePlayer, type Track } from "./player";
@@ -23,32 +23,10 @@ type View =
   | { kind: "folder"; id: string }
   | { kind: "playlist"; id: string };
 
-// The vault's own Music folder is always present and cannot be removed.
-//
-// It is the one folder that works everywhere: paths are stored vault-relative, so only files
-// under the vault reach the phone through Syncthing. A library with no folder at all — or with
-// only folders outside the vault — leaves the mobile app with nothing to show and no obvious
-// way to fix it, so this one is seeded on load and has no remove button. Others are additions.
-const BUILTIN_FOLDER = { id: "f-vault-music", name: "Music", path: "Music" };
-
-/** Ensure the built-in folder is present, matching on PATH so a renamed copy isn't duplicated. */
-function withBuiltin(lib: MusicLibrary): MusicLibrary {
-  if (lib.folders.some((f) => f.path === BUILTIN_FOLDER.path)) return lib;
-  return { ...lib, folders: [BUILTIN_FOLDER, ...lib.folders] };
-}
-
 export default function MusicModule() {
   const player = usePlayer();
   const [naming, setNaming] = useState<NamePromptState | null>(null);
   const [lib, setLib] = useState<MusicLibrary>({ folders: [], favorites: [], playlists: [] });
-  // Vault root — library paths are stored vault-relative; strip the root when adding a folder.
-  const vaultRoot = useRef("");
-  useEffect(() => { getVaultRoot().then((r) => (vaultRoot.current = r)).catch(() => {}); }, []);
-  const relativize = (p: string) => {
-    const root = vaultRoot.current.replace(/[\\/]+$/, "");
-    const norm = p.replace(/\\/g, "/");
-    return root && norm.startsWith(root.replace(/\\/g, "/") + "/") ? norm.slice(root.length + 1) : norm;
-  };
   const [view, setView] = useState<View>({ kind: "downloads" });
   const [metaCache, setMetaCache] = useState<Record<string, TrackMeta>>({});
   const [rows, setRows] = useState<TrackMeta[]>([]);
@@ -61,16 +39,8 @@ export default function MusicModule() {
     setView({ kind: "downloads" });
   };
 
-  // Load library once.
-  // Seed the built-in folder on load. Written back only when it was missing, so this repairs
-  // an older library once rather than rewriting the file on every launch.
-  useEffect(() => {
-    readLibrary().then((l) => {
-      const next = withBuiltin(l);
-      setLib(next);
-      if (next !== l) writeLibrary(next).catch(() => {});
-    });
-  }, []);
+  // Load library once. Folders are whatever the user added; there is no built-in one.
+  useEffect(() => { readLibrary().then(setLib); }, []);
   const saveLib = (next: MusicLibrary) => { setLib(next); writeLibrary(next).catch(() => {}); };
 
   // Read metadata for a set of paths, using/filling the cache.
@@ -114,13 +84,13 @@ export default function MusicModule() {
   const addFolder = async () => {
     const picked = await pickFolder().catch(() => "");
     if (!picked) return;
-    const path = relativize(picked); // store vault-relative
+    const path = picked; // absolute, wherever the user keeps their music
     if (lib.folders.some((f) => f.path === path)) return;
     const name = path.split(/[\\/]/).pop() || "Folder";
     saveLib({ ...lib, folders: [...lib.folders, { id: newId("f"), name, path }] });
   };
   const removeFolder = (id: string) =>
-    saveLib({ ...lib, folders: lib.folders.filter((f) => f.id !== id || f.path === BUILTIN_FOLDER.path) });
+    saveLib({ ...lib, folders: lib.folders.filter((f) => f.id !== id) });
   const newPlaylist = () => setNaming({
     title: "New playlist", placeholder: "Late night", confirmLabel: "Create",
     onSave: (name) => saveLib({ ...lib, playlists: [...lib.playlists, { id: newId("p"), name, tracks: [] }] }),
@@ -168,7 +138,7 @@ export default function MusicModule() {
         {lib.folders.map((f) => (
           <NavItem key={f.id} icon={FolderOpen} label={f.name} active={view.kind === "folder" && view.id === f.id}
             onClick={() => setView({ kind: "folder", id: f.id })}
-            onRemove={f.path === BUILTIN_FOLDER.path ? undefined : () => removeFolder(f.id)}
+            onRemove={() => removeFolder(f.id)}
             onReveal={() => revealInFolder(f.path)} />
         ))}
 
@@ -573,7 +543,7 @@ function DiscoverPanel({ folders, onSend }: {
     readMusicTaste().then((md) => { setTaste(md); setManual(splitTaste(md).manual.trim()); }).catch(() => {});
     configRead("dl-settings").then((t) => { try { const d = JSON.parse(t); if (d.target) setTarget(d.target); } catch { /* */ } }).catch(() => {});
     load(); loadDownloaded();
-    // Suggestions + downloads arrive via Syncthing / other views — poll to stay fresh.
+    // Suggestions + downloads arrive from other views and the MCP download tool — poll to stay fresh.
     const iv = setInterval(() => { load(); loadDownloaded(); }, 5000);
     return () => clearInterval(iv);
     /* eslint-disable-next-line */
@@ -602,7 +572,7 @@ function DiscoverPanel({ folders, onSend }: {
   const discover = async () => {
     setDiscovering(true); setChecked({});
     await musicDiscover(count).catch(() => setDiscovering(false));
-    // result lands in the vault after ~40s; the poll picks it up. Stop spinner after 3min max.
+    // result lands in music-suggestions.json after ~40s; the poll picks it up. Stop spinner after 3min max.
     setTimeout(() => setDiscovering(false), 180_000);
   };
 

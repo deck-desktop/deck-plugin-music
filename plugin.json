@@ -3,6 +3,6 @@
   "name": "Music",
   "description": "Local music player, with the phone as a remote.",
   "icon": "Music",
-  "version": "1.0.0",
-  "minDeck": "0.7.0"
+  "version": "1.1.0",
+  "minDeck": "0.22.0"
 }

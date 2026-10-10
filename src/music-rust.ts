@@ -2,10 +2,10 @@
 //
 // Each of these used to be a command in music.rs. They are here because they are music knowledge,
 // not platform capability: how yt-dlp formats a progress line, which extensions count as audio.
-// Deck contributes proc_stream, fs_list and the vault path pair; the rest is this plugin's
+// Deck contributes proc_stream and fs_list; the rest is this plugin's
 // business. The download flags themselves are in ytdlp.ts, shared with the agent-facing tool.
 import {
-  procStream, procKill, fsList, vaultResolve, vaultRelativize, vaultDataRead, vaultDataWrite,
+  procStream, procKill, fsList, vaultDataRead, vaultDataWrite,
 } from "../shim/bridge.js";
 import { listen } from "@tauri-apps/api/event";
 import { ytdlpArgs } from "./ytdlp";
@@ -30,18 +30,16 @@ const AUDIO_EXT = ["mp3", "m4a", "opus", "flac", "wav", "webm", "aac", "ogg"];
 const na = (s: string) => (s === "NA" ? "" : s);
 
 /**
- * Audio files directly inside a folder, vault-relative.
+ * Audio files directly inside a folder, as absolute paths.
  *
  * fs_list plus a filter, where list_audio_files was a command. The extension list is music's to
  * know, which is exactly why this moved.
  */
 export async function listAudioFiles(dir: string): Promise<string[]> {
-  const abs = await vaultResolve(dir);
-  const entries = await fsList(abs);
-  const files = entries
+  const entries = await fsList(dir);
+  return entries
     .filter((e) => !e.dir && AUDIO_EXT.includes(e.name.toLowerCase().split(".").pop() ?? ""))
     .map((e) => e.path);
-  return Promise.all(files.map((f) => vaultRelativize(f)));
 }
 
 /**
@@ -57,10 +55,7 @@ export async function downloadMedia(
   id: string, url: string, quality: string, outDir: string,
   onProgress?: (p: DownloadProgress) => void,
 ): Promise<DownloadResult> {
-  // The folder is stored vault-relative, so it must be resolved before yt-dlp sees it — left
-  // relative, yt-dlp resolves it against ITS OWN working directory and the files land somewhere
-  // nothing afterwards looks.
-  const dir = await vaultResolve(outDir);
+  const dir = outDir;
   // Shared with the agent's download in mcp.ts. The two run yt-dlp differently — this streams
   // through Rust, that one waits on execFile — but they ask it for the same thing.
   const args = ytdlpArgs({ url, dir, quality, progress: true });
@@ -92,11 +87,10 @@ export async function downloadMedia(
 
   try {
     const r = await procStream(id, "python", args, "");
-    // Stored vault-relative so the phone can resolve it against its own vault.
-    const rel = filePath ? await vaultRelativize(filePath) : "";
+
     return {
       id, ok: r.code === 0 && !r.cancelled, title,
-      filePath: rel, sizeBytes: 0,
+      filePath, sizeBytes: 0,
       error: r.cancelled ? "cancelled" : r.code === 0 ? "" : exitReason(r.code, !!title),
     };
   } catch (e) {
@@ -244,9 +238,6 @@ function updateAutoBlock(taste: string, auto: string): string {
  * Runs LOCALLY: Deck spawns the agent through proc_stream, the same way it runs yt-dlp. This
  * used to ssh to the VPS and run a script there, which meant the prompt — the actual substance
  * of the feature — lived in a file no copy of Deck had. Now the plugin owns it.
- *
- * Results still go into the vault's data dir, so Syncthing carries them to the phone exactly as
- * before, and the phone reads the same music-suggestions.json it always did.
  *
  * Resolves when suggestions have been written, unlike the old detached ssh call which returned
  * as soon as the job started. The run takes roughly 40 seconds.

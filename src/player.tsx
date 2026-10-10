@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertFileSrc, mediaSetNowPlaying, mediaSetPlayback, configRead, configWrite, getVaultRoot } from "../shim/bridge.js";
+import { convertFileSrc, mediaSetNowPlaying, mediaSetPlayback, configRead, configWrite } from "../shim/bridge.js";
 
 // path = stable id/local file. streamUrl (optional) = a ready remote URL to play
 // instead of the local file — used for Discover previews (a resolved YouTube stream).
@@ -75,20 +75,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     configWrite("player", JSON.stringify({ queue, index, volume, shuffle, repeat })).catch(() => {});
   }, [queue, index, volume, shuffle, repeat]);
 
-  // Vault root — library paths are stored vault-relative ("Music/x.mp3"); prepend the root to
-  // get an absolute path convertFileSrc can load.
-  const vaultRoot = useRef("");
-  useEffect(() => { getVaultRoot().then((r) => (vaultRoot.current = r)).catch(() => {}); }, []);
-  const resolve = (p: string) => {
-    const isAbs = p.startsWith("/") || /^[A-Za-z]:/.test(p);
-    return isAbs || !vaultRoot.current ? p : `${vaultRoot.current}/${p}`;
-  };
 
   // Load the current track into the audio element + tell the OS overlay.
   useEffect(() => {
     const a = audio.current!;
     if (!current) { a.pause(); a.removeAttribute("src"); setPlaying(false); return; }
-    a.src = current.streamUrl || convertFileSrc(resolve(current.path));
+    a.src = current.streamUrl || convertFileSrc(current.path);
     a.load();
     a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     mediaSetNowPlaying(current.title || nameFromPath(current.path), current.artist ?? "", current.artPath ?? "").catch(() => {});
