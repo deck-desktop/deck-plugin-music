@@ -4,7 +4,7 @@ import { NamePrompt, type NamePromptState } from "./components/NamePrompt";
 import {
   Music, Heart, ListMusic, FolderInput, Plus, Play, Pause, Search, MoreHorizontal,
   Download, X, Loader2, Check, AlertTriangle, FolderOpen, Shuffle, Clock, Disc3,
-  Sparkles, RotateCw,
+  Sparkles, RotateCw, PanelLeft,
 } from "lucide-react";
 import {readLibrary, writeLibrary, readTrackMeta, pickFolder, readDownloads, revealInFolder, convertFileSrc, defaultDownloadDir, configRead, configWrite, readMusicSuggestions, readMusicTaste, writeMusicTaste, type MusicLibrary, type MusicFolder, type MusicPlaylist, type TrackMeta, type DownloadItem, type SongSuggestion, type MusicSuggestions} from "../shim/bridge.js";
 import { listAudioFiles, musicDiscover, resolveStreamUrl, musicThumbs } from "./music-rust";
@@ -28,6 +28,22 @@ export default function MusicModule() {
   const [naming, setNaming] = useState<NamePromptState | null>(null);
   const [lib, setLib] = useState<MusicLibrary>({ folders: [], favorites: [], playlists: [] });
   const [view, setView] = useState<View>({ kind: "downloads" });
+  // In a narrow pane the library list is a drawer over the tracks rather than a column that would
+  // squeeze them. Measured here rather than with a Deck hook so the plugin keeps working on a Deck
+  // that has none.
+  // A ref callback, so measuring starts whenever the element appears.
+  const [rootEl, rootRef] = useState<HTMLDivElement | null>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    if (!rootEl) return;
+    const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 620));
+    ro.observe(rootEl);
+    return () => ro.disconnect();
+  }, [rootEl]);
+  const [libOpen, setLibOpen] = useState(false);
+  const drawer = narrow && libOpen;
+  // Picking a view closes the drawer: it has done its job.
+  useEffect(() => { setLibOpen(false); }, [view]);
   const [metaCache, setMetaCache] = useState<Record<string, TrackMeta>>({});
   const [rows, setRows] = useState<TrackMeta[]>([]);
   const [loading, setLoading] = useState(false);
@@ -126,9 +142,13 @@ export default function MusicModule() {
     : "";
 
   return (
-    <div className="flex h-full w-full gap-3 overflow-hidden">
+    <div ref={rootRef} className="relative flex h-full w-full gap-3 overflow-hidden">
+      {/* The drawer's backdrop: a click beside it closes it. */}
+      {drawer && <div className="absolute inset-0 z-20 bg-black/40" onClick={() => setLibOpen(false)} />}
       {/* LEFT: collections */}
-      <aside className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-subtle bg-panel/80 pr-3 backdrop-blur-xl blur-surface scroll-thin">
+      <aside className={"flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-subtle bg-panel/80 pr-3 backdrop-blur-xl blur-surface scroll-thin "
+          + (narrow ? (drawer ? "absolute inset-y-0 left-0 z-30 pl-2 pt-2 shadow-2xl" : "hidden") : "")}
+        style={drawer ? { background: "var(--bg-panel)" } : undefined}>
         <div className="px-2.5 pb-2 pt-0.5 text-sm font-semibold tracking-tight text-text-primary">Library</div>
         <NavItem icon={Sparkles} label="Discover" active={view.kind === "discover"} onClick={() => setView({ kind: "discover" })} />
         <NavItem icon={Heart} label="Favorites" active={view.kind === "favorites"} onClick={() => setView({ kind: "favorites" })} count={lib.favorites.length} />
@@ -157,6 +177,12 @@ export default function MusicModule() {
 
       {/* MAIN */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {narrow && (
+          <button onClick={() => setLibOpen((o) => !o)} title="Library"
+            className="mb-3 flex shrink-0 items-center gap-2 self-start rounded-md border border-subtle px-2.5 py-1.5 text-sm text-text-secondary transition hover:text-text-primary">
+            <PanelLeft size={15} /> {viewTitle || "Library"}
+          </button>
+        )}
         {view.kind === "discover" ? (
           <DiscoverPanel folders={lib.folders} onSend={sendToDownloads} />
         ) : view.kind === "downloads" ? (
