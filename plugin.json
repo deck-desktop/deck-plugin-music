@@ -3,6 +3,7 @@
   "name": "Music",
   "description": "A local music player for your own folders, with YouTube downloads and suggestions.",
   "icon": "Music",
-  "version": "1.1.1",
+  "color": "#fb7185",
+  "version": "1.1.2",
   "minDeck": "0.22.0"
 }
