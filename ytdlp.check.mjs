@@ -78,6 +78,8 @@ const fail = await build({
         contents: "export const procStream = async () => ({});" +
                   "export const procKill = async () => {};" +
                   "export const fsList = async () => [];" +
+                  "export const configRead = async () => '';" +
+                  "export const configWrite = async () => {};" +
                   "export const vaultResolve = async (s) => s;" +
                   "export const vaultRelativize = async (s) => s;" +
                   "export const vaultDataRead = async () => '';" +

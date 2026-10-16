@@ -1,9 +1,9 @@
-// plugins/music/src/mcp.ts
+// src/mcp.ts
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-// plugins/music/src/ytdlp.ts
+// src/ytdlp.ts
 function cleanUrl(url) {
   const parts = String(url).split(/[?&]/).filter((p, i) => i === 0 || !p.startsWith("si="));
   return parts.length <= 1 ? parts.join("") : `${parts[0]}?${parts.slice(1).join("&")}`;
@@ -43,7 +43,7 @@ function ytdlpArgs(opts) {
   return args;
 }
 
-// plugins/music/src/mcp.ts
+// src/mcp.ts
 function register(server, deck) {
   const { z, ok, readJson } = deck;
   server.tool(
