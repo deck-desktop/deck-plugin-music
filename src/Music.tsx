@@ -6,7 +6,8 @@ import {
   Download, X, Loader2, Check, AlertTriangle, FolderOpen, Shuffle, Clock, Disc3,
   Sparkles, RotateCw, PanelLeft,
 } from "lucide-react";
-import {readLibrary, writeLibrary, readTrackMeta, pickFolder, readDownloads, revealInFolder, convertFileSrc, defaultDownloadDir, configRead, configWrite, readMusicSuggestions, readMusicTaste, writeMusicTaste, type MusicLibrary, type MusicFolder, type MusicPlaylist, type TrackMeta, type DownloadItem, type SongSuggestion, type MusicSuggestions} from "../shim/bridge.js";
+import {readTrackMeta, pickFolder, revealInFolder, convertFileSrc, dirsDownload, configRead, configWrite, type TrackMeta} from "../shim/bridge.js";
+import {readLibrary, writeLibrary, readDownloads, readMusicSuggestions, readMusicTaste, writeMusicTaste, type MusicLibrary, type MusicFolder, type MusicPlaylist, type DownloadItem, type SongSuggestion, type MusicSuggestions} from "./library";
 import { listAudioFiles, musicDiscover, resolveStreamUrl, musicThumbs } from "./music-rust";
 import { useDownloads, enqueue, cancelOne, cancelEverything, retryOne, retryFailed, onDownloadDone } from "./downloads";
 import { usePlayer, type Track } from "./player";
@@ -57,7 +58,7 @@ export default function MusicModule() {
 
   // Load library once. Folders are whatever the user added; there is no built-in one.
   useEffect(() => { readLibrary().then(setLib); }, []);
-  const saveLib = (next: MusicLibrary) => { setLib(next); writeLibrary(next).catch(() => {}); };
+  const saveLib = (next: MusicLibrary) => { setLib(next); writeLibrary(next).catch((e) => console.warn("[music] library save failed", e)); };
 
   // Read metadata for a set of paths, using/filling the cache.
   const loadMeta = async (paths: string[]) => {
@@ -65,7 +66,7 @@ export default function MusicModule() {
     const missing = paths.filter((p) => !metaCache[p]);
     let cache = metaCache;
     if (missing.length) {
-      const metas = await readTrackMeta(missing).catch(() => [] as TrackMeta[]);
+      const metas = await readTrackMeta(missing).catch((e) => { console.warn("[music] track metadata read failed", e); return [] as TrackMeta[]; });
       cache = { ...metaCache };
       metas.forEach((m) => (cache[m.path] = m));
       setMetaCache(cache);
@@ -81,7 +82,7 @@ export default function MusicModule() {
       if (view.kind === "folder") {
         const f = lib.folders.find((x) => x.id === view.id);
         if (!f) { setRows([]); return; }
-        const files = await listAudioFiles(f.path).catch(() => [] as string[]);
+        const files = await listAudioFiles(f.path).catch((e) => { console.warn("[music] folder list failed", e); return [] as string[]; });
         await loadMeta(files);
         return;
       }
@@ -98,7 +99,7 @@ export default function MusicModule() {
 
   // ---- collection actions ----
   const addFolder = async () => {
-    const picked = await pickFolder().catch(() => "");
+    const picked = await pickFolder().catch((e) => { console.warn("[music] folder picker failed", e); return ""; });
     if (!picked) return;
     const path = picked; // absolute, wherever the user keeps their music
     if (lib.folders.some((f) => f.path === path)) return;
@@ -380,21 +381,21 @@ function DownloadPanel({ folders, onDownloaded, handoff, onHandoffConsumed }: {
   // Queue lives in the persistent store so it survives tab switches (component unmount).
   const { queue, running } = useDownloads();
 
-  const loadHistory = () => readDownloads().then((t) => { try { setHistory(t.trim() ? JSON.parse(t) : []); } catch { setHistory([]); } }).catch(() => {});
+  const loadHistory = () => readDownloads().then((t) => { try { setHistory(t.trim() ? JSON.parse(t) : []); } catch { setHistory([]); } }).catch((e) => console.warn("[music] download history load failed", e));
   useEffect(() => {
     // Target priority: saved setting → first library folder → Windows Downloads folder.
     configRead("dl-settings").then((t) => {
       try { const d = JSON.parse(t); if (d.target) setTarget(d.target); if (d.quality) setQuality(d.quality); } catch { /* */ }
-    }).catch(() => {}).finally(() => {
+    }).catch((e) => console.warn("[music] download settings load failed", e)).finally(() => {
       setTarget((cur) => cur || folders[0]?.path || "");
-      if (!folders.length) defaultDownloadDir().then((d) => setTarget((cur) => cur || d)).catch(() => {});
+      if (!folders.length) dirsDownload().then((d) => setTarget((cur) => cur || d)).catch((e) => console.warn("[music] default download folder lookup failed", e));
     });
     loadHistory();
     // Refresh history + let the collection re-scan whenever a download completes.
     const un = onDownloadDone(() => { loadHistory(); onDownloaded(); });
     return () => { un(); };
   }, []);
-  useEffect(() => { configWrite("dl-settings", JSON.stringify({ target, quality })).catch(() => {}); }, [target, quality]);
+  useEffect(() => { configWrite("dl-settings", JSON.stringify({ target, quality })).catch((e) => console.warn("[music] download settings save failed", e)); }, [target, quality]);
 
   const start = () => {
     const list = urls.split("\n").map((u) => u.trim()).filter(Boolean);
@@ -544,7 +545,7 @@ function DiscoverPanel({ folders, onSend }: {
     try {
       const url = await resolveStreamUrl(`ytsearch1:${s.artist} ${s.title} audio`);
       player.play([{ path: s.id, title: s.title, artist: s.artist, artPath: thumbs[s.id] || undefined, streamUrl: url }]);
-    } catch { /* resolve failed */ }
+    } catch (e) { console.warn("[music] preview stream resolve failed", e); /* resolve failed */ }
     finally { setResolving(null); }
   };
 
@@ -566,8 +567,8 @@ function DiscoverPanel({ folders, onSend }: {
   };
 
   useEffect(() => {
-    readMusicTaste().then((md) => { setTaste(md); setManual(splitTaste(md).manual.trim()); }).catch(() => {});
-    configRead("dl-settings").then((t) => { try { const d = JSON.parse(t); if (d.target) setTarget(d.target); } catch { /* */ } }).catch(() => {});
+    readMusicTaste().then((md) => { setTaste(md); setManual(splitTaste(md).manual.trim()); }).catch((e) => console.warn("[music] taste load failed", e));
+    configRead("dl-settings").then((t) => { try { const d = JSON.parse(t); if (d.target) setTarget(d.target); } catch { /* */ } }).catch((e) => console.warn("[music] download settings load failed", e));
     load(); loadDownloaded();
     // Suggestions + downloads arrive from other views and the MCP download tool — poll to stay fresh.
     const iv = setInterval(() => { load(); loadDownloaded(); }, 5000);
@@ -589,15 +590,15 @@ function DiscoverPanel({ folders, onSend }: {
         if (cancelled) return;
         const thumbs = Object.fromEntries(list.map((s, i) => [s.id, urls[i] || ""]));
         setThumbs(thumbs);
-        configWrite("music-thumbs", JSON.stringify({ gen, thumbs })).catch(() => {});
-      }).catch(() => {});
-    }).catch(() => {});
+        configWrite("music-thumbs", JSON.stringify({ gen, thumbs })).catch((e) => console.warn("[music] thumbnails save failed", e));
+      }).catch((e) => console.warn("[music] thumbnails fetch failed", e));
+    }).catch((e) => console.warn("[music] thumbnails load failed", e));
     return () => { cancelled = true; };
   }, [sugg?.generated_at]);
 
   const discover = async () => {
     setDiscovering(true); setChecked({});
-    await musicDiscover(count).catch(() => setDiscovering(false));
+    await musicDiscover(count).catch((e) => { console.warn("[music] discover failed", e); setDiscovering(false); });
     // result lands in music-suggestions.json after ~40s; the poll picks it up. Stop spinner after 3min max.
     setTimeout(() => setDiscovering(false), 180_000);
   };
@@ -606,7 +607,7 @@ function DiscoverPanel({ folders, onSend }: {
     const { auto } = splitTaste(taste);
     const head = auto || "# Music taste\n\n<!-- AUTO: Claude maintains this. -->\n(pending)\n<!-- /AUTO -->";
     const merged = `${head}\n\n<!-- MANUAL: write anything you like — artists, genres, moods. Claude never edits this. -->\n${manual.trim()}\n`;
-    setTaste(merged); writeMusicTaste(merged).catch(() => {});
+    setTaste(merged); writeMusicTaste(merged).catch((e) => console.warn("[music] taste save failed", e));
   };
 
   const songs = sugg?.songs ?? [];

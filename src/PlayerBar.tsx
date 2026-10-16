@@ -34,14 +34,14 @@ export default function PlayerBar() {
   // Placement setting: "fixed" (default) or "floating".
   const [placement, setPlacement] = useState<"fixed" | "floating">("fixed");
   useEffect(() => {
-    const load = () => configRead("settings").then((t) => {
+    const load = () => configRead("settings/settings").then((t) => {
       try { const s = t.trim() ? JSON.parse(t) : {}; setPlacement(s.playerPlacement === "floating" ? "floating" : "fixed"); } catch { /* */ }
-    }).catch(() => {});
+    }).catch((e) => console.warn("[music] settings load failed", e));
     load();
     // Re-read when Settings writes the config (the watcher emits config-changed) so
     // switching placement updates live, without a restart.
     let un: (() => void) | undefined;
-    listen<string[]>("config-changed", (e) => { if (e.payload.includes("settings")) load(); }).then((u) => (un = u));
+    listen<string[]>("config-changed", (e) => { if (e.payload.includes("settings/settings")) load(); }).then((u) => (un = u));
     return () => un?.();
   }, []);
 

@@ -32,9 +32,9 @@ export default function MusicSettings() {
   // Read from Deck's settings file rather than the plugin's own: PlayerBar already reads
   // playerPlacement from there, and moving the key would strand the value someone has set.
   useEffect(() => {
-    configRead("settings")
+    configRead("settings/settings")
       .then((t) => { if (t.trim()) setPlacement(JSON.parse(t).playerPlacement ?? "fixed"); })
-      .catch(() => {});
+      .catch((e) => console.warn("[music] settings load failed", e));
   }, []);
 
   const save = async (next: Placement) => {
@@ -42,9 +42,9 @@ export default function MusicSettings() {
     // Read-modify-write, because this file is Deck's and holds everything else too. A plugin
     // writing its own object here would wipe the user's entire configuration.
     try {
-      const t = await configRead("settings");
+      const t = await configRead("settings/settings");
       const all = t.trim() ? JSON.parse(t) : {};
-      await configWrite("settings", JSON.stringify({ ...all, playerPlacement: next }));
+      await configWrite("settings/settings", JSON.stringify({ ...all, playerPlacement: next }));
     } catch { /* a failed write leaves the old value; the toggle reverts on next read */ }
   };
 

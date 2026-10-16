@@ -5,7 +5,7 @@
 // Deck contributes proc_stream and fs_list; the rest is this plugin's
 // business. The download flags themselves are in ytdlp.ts, shared with the agent-facing tool.
 import {
-  procStream, procKill, fsList, vaultDataRead, vaultDataWrite,
+  procStream, procKill, fsList, configRead, configWrite,
 } from "../shim/bridge.js";
 import { listen } from "@tauri-apps/api/event";
 import { ytdlpArgs } from "./ytdlp";
@@ -245,11 +245,11 @@ function updateAutoBlock(taste: string, auto: string): string {
 export async function musicDiscover(count: number): Promise<void> {
   const n = Math.min(30, Math.max(1, Math.floor(count)));
 
-  const taste = (await vaultDataRead("music-taste.md").catch(() => "")) || TASTE_SEED;
+  const taste = (await configRead("music-taste.md").catch(() => "")) || TASTE_SEED;
 
   // Filenames as taste hints: folder names, favorites and playlist tracks, stripped of their
   // directory and extension. Capped, because the prompt has to stay a prompt.
-  const libRaw = await vaultDataRead("music-library.json").catch(() => "");
+  const libRaw = await configRead("music-library").catch(() => "");
   let libNames = "";
   try {
     const lib = JSON.parse(libRaw || "{}");
@@ -271,10 +271,13 @@ export async function musicDiscover(count: number): Promise<void> {
   });
 
   try {
-    // --dangerously-skip-permissions because this is headless with nobody to answer a prompt,
-    // and the agent only reads a taste file and searches the web.
+    // Web search and nothing else, allowed up front since nobody is there to answer a prompt; no
+    // MCP servers and none of the user's settings or hooks. The prompt carries library file
+    // names, which come from downloaded titles anyone can write, so an agent with every tool and
+    // no prompts (--dangerously-skip-permissions, as this was) could be told to run commands.
     const r = await procStream(id, "claude",
-      ["-p", DISCOVER_PROMPT(taste, libNames, n), "--dangerously-skip-permissions"], "");
+      ["-p", DISCOVER_PROMPT(taste, libNames, n), "--tools", "WebSearch", "--allowedTools", "WebSearch",
+        "--strict-mcp-config", "--setting-sources", ""], "");
     if (r.code !== 0) throw new Error(`the discovery agent exited ${r.code}`);
 
     // Take the outermost JSON object, tolerating a stray markdown fence around it.
@@ -291,11 +294,11 @@ export async function musicDiscover(count: number): Promise<void> {
     const songs = (parsed.songs ?? []).map((s, i) => ({
       id: `s${i}`, title: s.title ?? "", artist: s.artist ?? "", why: s.why ?? "",
     }));
-    await vaultDataWrite("music-suggestions.json",
+    await configWrite("music-suggestions",
       JSON.stringify({ generated_at: Date.now(), songs }, null, 2));
 
     if (parsed.taste_auto) {
-      await vaultDataWrite("music-taste.md", updateAutoBlock(taste, parsed.taste_auto));
+      await configWrite("music-taste.md", updateAutoBlock(taste, parsed.taste_auto));
     }
   } finally {
     un();

@@ -3,7 +3,7 @@
 // The Rust side actually runs yt-dlp and emits `download-progress`; this mirrors it.
 import { useSyncExternalStore } from "react";
 import { listen } from "@tauri-apps/api/event";
-import {readDownloads, writeDownloads, type DownloadItem} from "../shim/bridge.js";
+import {readDownloads, writeDownloads, type DownloadItem} from "./library";
 import { downloadMedia, cancelDownload, type DownloadProgress } from "./music-rust";
 
 export type QueueRow = {
@@ -42,8 +42,8 @@ export function disposeDownloads() {
 
 async function appendHistory(item: DownloadItem) {
   let h: DownloadItem[] = [];
-  try { const t = await readDownloads(); h = t.trim() ? JSON.parse(t) : []; } catch { /* */ }
-  await writeDownloads(JSON.stringify([item, ...h].slice(0, 200))).catch(() => {});
+  try { const t = await readDownloads(); h = t.trim() ? JSON.parse(t) : []; } catch (e) { console.warn("[music] download history read failed", e); }
+  await writeDownloads(JSON.stringify([item, ...h].slice(0, 200))).catch((e) => console.warn("[music] download history save failed", e));
 }
 
 // Drain queued rows sequentially (one at a time). Each row carries its own dir/format/

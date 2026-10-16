@@ -68,11 +68,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (d.shuffle) setShuffle(true);
         if (d.repeat) setRepeat(d.repeat);
       } catch { /* */ }
-    }).catch(() => {});
+    }).catch((e) => console.warn("[music] player state load failed", e));
   }, []);
   // Persist queue/index/volume/modes (not position — cheap + avoids churn).
   useEffect(() => {
-    configWrite("player", JSON.stringify({ queue, index, volume, shuffle, repeat })).catch(() => {});
+    configWrite("player", JSON.stringify({ queue, index, volume, shuffle, repeat })).catch((e) => console.warn("[music] player state save failed", e));
   }, [queue, index, volume, shuffle, repeat]);
 
 
