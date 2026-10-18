@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ConfirmDialog, type ConfirmState } from "./components/ConfirmDialog";
-import { NamePrompt, type NamePromptState } from "./components/NamePrompt";
+import {
+  ConfirmDialog, ContextMenu, NamePrompt,
+  type ConfirmState, type MenuEntry, type NamePromptState,
+} from "../shim/ui.js";
 import {
   Music, Heart, ListMusic, FolderInput, Plus, Play, Pause, Search, MoreHorizontal,
   Download, X, Loader2, Check, AlertTriangle, FolderOpen, Shuffle, Clock, Disc3,
@@ -16,6 +18,21 @@ const newId = (p: string) => `${p}-${Date.now().toString(36)}-${Math.random().to
 const fmtDur = (s: number) => s ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "–:––";
 const art = (p?: string) => p ? convertFileSrc(p) : "";
 
+// Deck's design guide (docs/design.md), as the classes this screen repeats.
+/** An icon button inside a row: one step stronger on hover so it shows against the row's own. */
+const iconBtn = "grid size-5 shrink-0 place-items-center rounded text-text-muted transition-colors hover:bg-white/10 hover:text-text-primary";
+const dangerBtn = "grid size-5 shrink-0 place-items-center rounded text-text-muted transition-colors hover:bg-white/10 hover:text-red-400";
+/** The one accent-filled action on a screen; give it `style={accentFill}`. */
+const primaryBtn = "flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-[12.5px] font-medium text-white transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100";
+const accentFill = { background: "var(--accent)" };
+const secondaryBtn = "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-subtle bg-elev px-3 text-[12.5px] text-text-secondary transition-colors hover:border-strong hover:text-text-primary disabled:opacity-50 disabled:hover:border-subtle";
+/** A text box or dropdown on the elevated surface, lit in the accent while focused. Its text
+ *  colour is the caller's: two colour classes on one element resolve by stylesheet order. */
+const field = "rounded-lg border border-subtle bg-elev text-[12.5px] outline-none transition-colors placeholder:text-text-muted focus:border-[var(--accent)]";
+const heading = "text-[12px] font-medium text-text-secondary";
+/** A state in its colour: the text in it, the background the same at 14%. */
+const chip = (color: string) => ({ color, background: `color-mix(in srgb, ${color} 14%, transparent)` });
+
 // A selected view in the left nav.
 type View =
   | { kind: "favorites" }
@@ -27,6 +44,7 @@ type View =
 export default function MusicModule() {
   const player = usePlayer();
   const [naming, setNaming] = useState<NamePromptState | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [lib, setLib] = useState<MusicLibrary>({ folders: [], favorites: [], playlists: [] });
   const [view, setView] = useState<View>({ kind: "downloads" });
   // In a narrow pane the library list is a drawer over the tracks rather than a column that would
@@ -106,14 +124,22 @@ export default function MusicModule() {
     const name = path.split(/[\\/]/).pop() || "Folder";
     saveLib({ ...lib, folders: [...lib.folders, { id: newId("f"), name, path }] });
   };
-  const removeFolder = (id: string) =>
-    saveLib({ ...lib, folders: lib.folders.filter((f) => f.id !== id) });
+  const removeFolder = (id: string) => setConfirm({
+    title: `Remove ${lib.folders.find((f) => f.id === id)?.name ?? "this folder"} from the library?`,
+    body: "Its songs leave the library. The files stay on disk.",
+    confirmLabel: "Remove",
+    onConfirm: () => saveLib({ ...lib, folders: lib.folders.filter((f) => f.id !== id) }),
+  });
   const newPlaylist = () => setNaming({
     title: "New playlist", placeholder: "Late night", confirmLabel: "Create",
     onSave: (name) => saveLib({ ...lib, playlists: [...lib.playlists, { id: newId("p"), name, tracks: [] }] }),
   });
-  const removePlaylist = (id: string) =>
-    saveLib({ ...lib, playlists: lib.playlists.filter((p) => p.id !== id) });
+  const removePlaylist = (id: string) => setConfirm({
+    title: `Delete the playlist ${lib.playlists.find((p) => p.id === id)?.name ?? ""}?`,
+    body: "The playlist goes; its songs stay in the library and on disk.",
+    confirmLabel: "Delete playlist",
+    onConfirm: () => saveLib({ ...lib, playlists: lib.playlists.filter((p) => p.id !== id) }),
+  });
 
   const isFav = (p: string) => lib.favorites.includes(p);
   const toggleFav = (p: string) =>
@@ -147,41 +173,39 @@ export default function MusicModule() {
       {/* The drawer's backdrop: a click beside it closes it. */}
       {drawer && <div className="absolute inset-0 z-20 bg-black/40" onClick={() => setLibOpen(false)} />}
       {/* LEFT: collections */}
-      <aside className={"flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-subtle bg-panel/80 pr-3 backdrop-blur-xl blur-surface scroll-thin "
-          + (narrow ? (drawer ? "absolute inset-y-0 left-0 z-30 pl-2 pt-2 shadow-2xl" : "hidden") : "")}
-        style={drawer ? { background: "var(--bg-panel)" } : undefined}>
-        <div className="px-2.5 pb-2 pt-0.5 text-sm font-semibold tracking-tight text-text-primary">Library</div>
+      {/* As a drawer it floats over the tracks, so it takes the floating surface. */}
+      <aside className={"flex w-56 shrink-0 flex-col gap-px overflow-y-auto border-r border-subtle bg-panel/80 pr-3 backdrop-blur-xl blur-surface scroll-thin "
+          + (narrow ? (drawer ? "absolute inset-y-0 left-0 z-30 rounded-[10px] border border-subtle p-1.5 shadow-2xl" : "hidden") : "")}
+        style={drawer ? { background: "var(--bg-card)" } : undefined}>
         <NavItem icon={Sparkles} label="Discover" active={view.kind === "discover"} onClick={() => setView({ kind: "discover" })} />
         <NavItem icon={Heart} label="Favorites" active={view.kind === "favorites"} onClick={() => setView({ kind: "favorites" })} count={lib.favorites.length} />
         <NavItem icon={Download} label="Downloads" active={view.kind === "downloads"} onClick={() => setView({ kind: "downloads" })} />
 
-        <SectionLabel>Folders</SectionLabel>
+        {/* Each section's add button on its heading, and as the way in while the section is empty. */}
+        <SectionLabel action={<button onClick={addFolder} title="Add folder" className={iconBtn}><FolderInput size={13} /></button>}>Folders</SectionLabel>
         {lib.folders.map((f) => (
           <NavItem key={f.id} icon={FolderOpen} label={f.name} active={view.kind === "folder" && view.id === f.id}
             onClick={() => setView({ kind: "folder", id: f.id })}
             onRemove={() => removeFolder(f.id)}
             onReveal={() => revealInFolder(f.path)} />
         ))}
+        {!lib.folders.length && <AddBtn icon={FolderInput} label="Add folder" onClick={addFolder} />}
 
-        <SectionLabel>Playlists</SectionLabel>
+        <SectionLabel action={<button onClick={newPlaylist} title="New playlist" className={iconBtn}><Plus size={13} /></button>}>Playlists</SectionLabel>
         {lib.playlists.map((p) => (
           <NavItem key={p.id} icon={ListMusic} label={p.name} active={view.kind === "playlist" && view.id === p.id}
             onClick={() => setView({ kind: "playlist", id: p.id })} count={p.tracks.length}
             onRemove={() => removePlaylist(p.id)} />
         ))}
-
-        <div className="mt-2 space-y-1 border-t border-subtle pt-2">
-          <AddBtn icon={FolderInput} label="Add folder" onClick={addFolder} />
-          <AddBtn icon={Plus} label="New playlist" onClick={newPlaylist} />
-        </div>
+        {!lib.playlists.length && <AddBtn icon={Plus} label="New playlist" onClick={newPlaylist} />}
       </aside>
 
       {/* MAIN */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {narrow && (
           <button onClick={() => setLibOpen((o) => !o)} title="Library"
-            className="mb-3 flex shrink-0 items-center gap-2 self-start rounded-md border border-subtle px-2.5 py-1.5 text-sm text-text-secondary transition hover:text-text-primary">
-            <PanelLeft size={15} /> {viewTitle || "Library"}
+            className={secondaryBtn + " mb-3 self-start"}>
+            <PanelLeft size={14} /> {viewTitle || "Library"}
           </button>
         )}
         {view.kind === "discover" ? (
@@ -196,25 +220,24 @@ export default function MusicModule() {
               <div className="grid h-28 w-28 shrink-0 place-items-center rounded-xl shadow-card" style={{ background: "linear-gradient(135deg, var(--accent-strong), var(--bg-elev))" }}>
                 {view.kind === "favorites" ? <Heart size={40} className="text-white" /> : <Disc3 size={40} className="text-white/90" />}
               </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-medium text-text-muted">
                   {view.kind === "playlist" ? "Playlist" : view.kind === "favorites" ? "Collection" : "Folder"}
                 </div>
                 <h1 className="truncate text-3xl font-bold text-text-primary">{viewTitle}</h1>
-                <div className="mt-1 text-sm text-text-muted">{filtered.length} track{filtered.length === 1 ? "" : "s"}</div>
+                <div className="mt-1 text-[12.5px] text-text-muted">{filtered.length} track{filtered.length === 1 ? "" : "s"}</div>
                 <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => playRows(0)} disabled={!rows.length}
-                    className="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-white shadow-glow disabled:opacity-50" style={{ background: "var(--accent-strong)" }}>
-                    <Play size={16} /> Play
+                  <button onClick={() => playRows(0)} disabled={!rows.length} className={primaryBtn} style={accentFill}>
+                    <Play size={14} /> Play
                   </button>
                   <button onClick={() => { player.setShuffle(true); playRows(Math.floor(Math.random() * Math.max(1, rows.length))); }} disabled={!rows.length}
-                    className="flex items-center gap-2 rounded-full border border-subtle px-4 py-2 text-sm text-text-secondary transition hover:text-text-primary disabled:opacity-50">
-                    <Shuffle size={15} /> Shuffle
+                    className={secondaryBtn}>
+                    <Shuffle size={14} /> Shuffle
                   </button>
-                  <div className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1.5" style={{ background: "var(--bg-elev)" }}>
-                    <Search size={13} className="text-text-muted" />
+                  <div className="ml-auto flex h-8 items-center gap-1.5 rounded-lg border border-subtle bg-elev pl-2.5 pr-2 transition-colors focus-within:border-[var(--accent)]">
+                    <Search size={13} className="shrink-0 text-text-muted" />
                     <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
-                      className="w-32 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted" />
+                      className="w-32 min-w-0 bg-transparent text-[12.5px] text-text-primary outline-none placeholder:text-text-muted" />
                   </div>
                 </div>
               </div>
@@ -223,17 +246,31 @@ export default function MusicModule() {
             {/* Track table */}
             <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
               {loading ? (
-                <div className="flex items-center gap-2 px-3 py-8 text-sm text-text-muted"><Loader2 size={15} className="animate-spin" /> Reading tags…</div>
+                <div className="flex items-center gap-2 px-3 py-8 text-[12.5px] text-text-muted"><Loader2 size={14} className="animate-spin" /> Reading tags…</div>
               ) : filtered.length === 0 ? (
-                <div className="px-3 py-10 text-center text-sm text-text-muted">
-                  {view.kind === "favorites" ? "No favorites yet — star tracks to add them."
-                    : view.kind === "playlist" ? "Empty playlist — add tracks from a folder (⋯ → Add to playlist)."
-                    : "No audio here. Add a folder with music, or download some."}
-                </div>
+                q.trim() && rows.length ? (
+                  <p className="px-3 py-6 text-[12.5px] text-text-muted">Nothing here matches “{q.trim()}”.</p>
+                ) : (
+                  <div className="mx-auto mt-6 flex max-w-md items-start gap-2.5 rounded-lg border border-subtle bg-elev px-3 py-3 text-[12.5px] leading-relaxed text-text-muted">
+                    {view.kind === "favorites" ? <Heart size={16} className="mt-0.5 shrink-0" />
+                      : view.kind === "playlist" ? <ListMusic size={16} className="mt-0.5 shrink-0" />
+                      : <FolderOpen size={16} className="mt-0.5 shrink-0" />}
+                    <div className="flex flex-col items-start gap-2.5">
+                      <span>
+                        {view.kind === "favorites" ? "No favorites yet. Heart a track in a folder or playlist to keep it here."
+                          : view.kind === "playlist" ? "This playlist is empty. Open a folder and use ⋯, Add to playlist, on a track."
+                          : "No audio in this folder. Download some into it, or add another folder."}
+                      </span>
+                      {view.kind === "folder" && (
+                        <button onClick={() => setView({ kind: "downloads" })} className={secondaryBtn}><Download size={14} /> Add music</button>
+                      )}
+                    </div>
+                  </div>
+                )
               ) : (
-                <table className="w-full border-collapse text-sm">
+                <table className="w-full border-collapse text-[12.5px]">
                   <thead>
-                    <tr className="border-b border-subtle text-left text-[11px] uppercase tracking-wide text-text-muted">
+                    <tr className="border-b border-subtle text-left text-[11.5px] text-text-muted">
                       <th className="w-10 py-2 pl-3 font-medium">#</th>
                       <th className="py-2 font-medium">Title</th>
                       <th className="hidden py-2 font-medium md:table-cell">Album</th>
@@ -247,7 +284,7 @@ export default function MusicModule() {
                       const playingThis = player.current?.path === m.path;
                       return (
                         <tr key={m.path} onDoubleClick={() => playRows(i)}
-                          className="group cursor-default border-b border-subtle/40 transition-colors hover:bg-white/[0.03]">
+                          className="group cursor-default transition-colors hover:bg-white/5">
                           <td className="py-2 pl-3">
                             <button onClick={() => playRows(i)} className="grid h-6 w-6 place-items-center text-text-muted">
                               <span className="group-hover:hidden" style={{ color: playingThis ? "var(--accent)" : undefined }}>{playingThis && player.playing ? <Disc3 size={13} className="animate-spin" /> : i + 1}</span>
@@ -262,14 +299,14 @@ export default function MusicModule() {
                               </div>
                               <div className="min-w-0">
                                 <div className="truncate font-medium" style={{ color: playingThis ? "var(--accent)" : "var(--text-primary)" }}>{m.title}</div>
-                                <div className="truncate text-xs text-text-muted">{m.artist || "Unknown artist"}</div>
+                                <div className="truncate text-[11.5px] text-text-muted">{m.artist || "Unknown artist"}</div>
                               </div>
                             </div>
                           </td>
                           <td className="hidden truncate py-2 text-text-muted md:table-cell">{m.album}</td>
                           <td className="py-2">
                             <button onClick={() => toggleFav(m.path)} title="Favorite"
-                              className="opacity-0 transition group-hover:opacity-100" style={{ opacity: isFav(m.path) ? 1 : undefined }}>
+                              className="grid size-6 place-items-center rounded opacity-0 transition hover:bg-white/10 group-hover:opacity-100" style={{ opacity: isFav(m.path) ? 1 : undefined }}>
                               <Heart size={15} fill={isFav(m.path) ? "var(--accent)" : "none"} style={{ color: isFav(m.path) ? "var(--accent)" : "var(--text-muted)" }} />
                             </button>
                           </td>
@@ -291,43 +328,48 @@ export default function MusicModule() {
         )}
       </main>
       <NamePrompt state={naming} onClose={() => setNaming(null)} />
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }
 
 // ---- left nav pieces ----
-const SectionLabel = ({ children }: { children: React.ReactNode }) =>
-  <div className="mt-3 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">{children}</div>;
+const SectionLabel = ({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) => (
+  <div className="group mt-3 flex h-7 shrink-0 items-center gap-1 rounded-md pl-2.5 pr-1">
+    <span className={heading + " min-w-0 flex-1 truncate"}>{children}</span>
+    {action && <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">{action}</span>}
+  </div>
+);
 
 function NavItem({ icon: Icon, label, active, onClick, count, onRemove, onReveal }: {
   icon: any; label: string; active: boolean; onClick: () => void;
   count?: number; onRemove?: () => void; onReveal?: () => void;
 }) {
   return (
-    <div className={"group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors " +
-      (active ? "text-text-primary" : "text-text-secondary hover:bg-elev hover:text-text-primary")}
-      style={active ? { background: "var(--accent-soft)", boxShadow: "inset 0 0 0 1px var(--accent-soft)" } : undefined}>
-      <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2.5">
-        <Icon size={16} className="shrink-0" style={{ color: active ? "var(--accent)" : "var(--text-muted)" }} />
+    <div className={"group flex h-6 shrink-0 items-center gap-1 rounded-md pl-2.5 pr-1 text-[12.5px] transition-colors " +
+      (active ? "text-text-primary" : "text-text-secondary hover:bg-white/5 hover:text-text-primary")}
+      style={active ? { background: "var(--accent-soft)" } : undefined}>
+      <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+        <Icon size={14} className={"shrink-0 " + (active ? "text-text-primary" : "text-text-muted")} />
         <span className="truncate">{label}</span>
       </button>
-      {count != null && count > 0 && (
-        <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
-          style={{ background: "var(--bg-elev)", color: "var(--text-muted)" }}>{count}</span>
-      )}
       {(onRemove || onReveal) && (
         <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-          {onReveal && <button onClick={onReveal} title="Reveal" className="text-text-muted hover:text-text-primary"><FolderOpen size={13} /></button>}
-          {onRemove && <button onClick={onRemove} title="Remove from library" className="text-text-muted hover:text-danger"><X size={13} /></button>}
+          {onReveal && <button onClick={onReveal} title="Reveal" className={iconBtn}><FolderOpen size={13} /></button>}
+          {onRemove && <button onClick={onRemove} title="Remove from library" className={dangerBtn}><X size={13} /></button>}
         </div>
+      )}
+      {count != null && count > 0 && (
+        <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1.5 text-[10.5px] tabular-nums text-text-secondary"
+          style={{ background: "var(--bg-elev)" }}>{count}</span>
       )}
     </div>
   );
 }
 
 const AddBtn = ({ icon: Icon, label, onClick }: { icon: any; label: string; onClick: () => void }) => (
-  <button onClick={onClick} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-text-muted transition hover:bg-elev hover:text-text-primary">
-    <Icon size={16} /> {label}
+  <button onClick={onClick} className="flex h-6 w-full shrink-0 items-center gap-2 rounded-md px-2.5 text-[12px] text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary">
+    <Icon size={13} /> {label}
   </button>
 );
 
@@ -335,34 +377,27 @@ function RowMenu({ playlists, onAddToPlaylist, onRemoveFromPlaylist, onReveal }:
   playlists: MusicPlaylist[];
   onAddToPlaylist: (pid: string) => void; onRemoveFromPlaylist?: () => void; onReveal: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [dropUp, setDropUp] = useState(false);
-  // Open upward when the row is near the viewport bottom, so the menu isn't clipped
-  // by the list's overflow container (menu is ~220px tall for a few playlists).
-  const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!open) { const r = e.currentTarget.getBoundingClientRect(); setDropUp(window.innerHeight - r.bottom < 240); }
-    setOpen((v) => !v);
-  };
+  // Deck's menu, which flips itself when the row is near the bottom and portals out of the
+  // list's overflow container.
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const items: MenuEntry[] = [
+    { label: "Add to playlist", icon: ListMusic, children: playlists.length
+      ? playlists.map((pl) => ({ label: pl.name, onClick: () => onAddToPlaylist(pl.id) }))
+      : [{ label: "No playlists", disabled: true }] },
+    "sep",
+    ...(onRemoveFromPlaylist ? [{ label: "Remove from playlist", icon: X, danger: true, onClick: onRemoveFromPlaylist }] : []),
+    { label: "Reveal in folder", icon: FolderOpen, onClick: onReveal },
+  ];
   return (
-    <div className="relative">
-      <button onClick={toggle} className="opacity-0 transition group-hover:opacity-100 text-text-muted hover:text-text-primary"><MoreHorizontal size={16} /></button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className={"absolute right-0 z-50 w-44 rounded-lg border border-subtle p-1 shadow-card " + (dropUp ? "bottom-full mb-1" : "mt-1")} style={{ background: "var(--bg-card)" }}>
-            <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-text-muted">Add to playlist</div>
-            {playlists.length === 0 && <div className="px-2 py-1 text-xs text-text-muted">No playlists</div>}
-            {playlists.map((pl) => (
-              <button key={pl.id} onClick={() => { onAddToPlaylist(pl.id); setOpen(false); }}
-                className="block w-full truncate rounded px-2 py-1.5 text-left text-sm text-text-secondary hover:bg-elev hover:text-text-primary">{pl.name}</button>
-            ))}
-            <div className="my-1 border-t border-subtle" />
-            {onRemoveFromPlaylist && <button onClick={() => { onRemoveFromPlaylist(); setOpen(false); }} className="block w-full rounded px-2 py-1.5 text-left text-sm text-danger hover:bg-elev">Remove from playlist</button>}
-            <button onClick={() => { onReveal(); setOpen(false); }} className="block w-full rounded px-2 py-1.5 text-left text-sm text-text-secondary hover:bg-elev hover:text-text-primary">Reveal in folder</button>
-          </div>
-        </>
-      )}
-    </div>
+    <>
+      {/* aria-expanded tells the menu this button opened it, so pressing it again closes it. */}
+      <button title="More actions" aria-haspopup="menu" aria-expanded={!!at}
+        className={iconBtn + " opacity-0 group-hover:opacity-100"} style={at ? { opacity: 1 } : undefined}
+        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAt({ x: r.right, y: r.bottom + 4 }); }}>
+        <MoreHorizontal size={14} />
+      </button>
+      {at && <ContextMenu x={at.x} y={at.y} alignRight items={items} onClose={() => setAt(null)} />}
+    </>
   );
 }
 
@@ -432,69 +467,73 @@ function DownloadPanel({ folders, onDownloaded, handoff, onHandoffConsumed }: {
   return (
     <>
     <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-      <h1 className="text-2xl font-bold text-text-primary">Add music</h1>
-      <div className="rounded-xl border border-subtle p-4" style={{ background: "var(--bg-card-glass)" }}>
+      <h1 className="text-[20px] font-semibold text-text-primary">Add music</h1>
+      <div className="rounded-lg border border-subtle p-3" style={{ background: "var(--bg-card-glass)" }}>
         <textarea value={urls} onChange={(e) => setUrls(e.target.value)} rows={3}
           placeholder="Paste one or more URLs, one per line…"
-          className="scroll-thin w-full resize-none rounded-lg px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-muted" style={{ background: "var(--bg-elev)" }} />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+          className={field + " scroll-thin block w-full resize-none px-2.5 py-2 text-text-primary"} />
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {/* Audio only. This is a music library — a downloaded video is not something anything
               else here can play, sort or tag, and the format toggle only ever offered a way to
               fill the library with files it does not understand. */}
-          <select value={quality} onChange={(e) => setQuality(e.target.value)} className="rounded-lg px-3 py-2 text-sm text-text-secondary outline-none" style={{ background: "var(--bg-elev)" }}>
+          <select value={quality} onChange={(e) => setQuality(e.target.value)} className={field + " h-8 px-2.5 text-text-secondary"}>
             {[["0", "Best"], ["192K", "192k"], ["128K", "128k"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
           {/* Target folder = a library folder */}
-          <select value={target} onChange={(e) => setTarget(e.target.value)} className="max-w-[200px] rounded-lg px-3 py-2 text-sm text-text-secondary outline-none" style={{ background: "var(--bg-elev)" }} title="Download into folder">
+          <select value={target} onChange={(e) => setTarget(e.target.value)} className={field + " h-8 max-w-[200px] px-2.5 text-text-secondary"} title="Download into folder">
             {folders.length === 0 && <option value={target}>{target.split(/[\\/]/).pop() || "Downloads"}</option>}
             {folders.map((f) => <option key={f.id} value={f.path}>{f.name}</option>)}
           </select>
+          {/* One accent at a time: Download while idle; while running, adding to the queue is the
+              thing to do next, and Cancel is secondary (red only under the pointer). */}
           {running
-            ? <button onClick={cancelEverything} className="ml-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ background: "var(--danger)" }}><X size={15} /> Cancel</button>
-            : <button onClick={start} disabled={!urls.trim()} className="ml-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-glow disabled:opacity-50" style={{ background: "var(--accent-strong)" }}><Download size={15} /> Download</button>}
-          {running && <button onClick={start} disabled={!urls.trim()} title="Add to queue" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: "var(--accent-strong)" }}><Plus size={15} /></button>}
+            ? <button onClick={cancelEverything} className="ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-subtle bg-elev px-3 text-[12.5px] text-text-secondary transition-colors hover:border-strong hover:text-red-400"><X size={14} /> Cancel</button>
+            : <button onClick={start} disabled={!urls.trim()} className={primaryBtn + " ml-auto"} style={accentFill}><Download size={14} /> Download</button>}
+          {running && <button onClick={start} disabled={!urls.trim()} title="Add to queue" className="grid size-8 shrink-0 place-items-center rounded-lg text-white transition hover:brightness-110 disabled:opacity-50" style={accentFill}><Plus size={14} /></button>}
         </div>
-        {folders.length === 0 && <p className="mt-2 text-xs text-text-muted">Tip: add a folder in the sidebar to download into a collection.</p>}
+        {folders.length === 0 && <p className="mt-2 text-[11.5px] text-text-muted">Tip: add a folder in the sidebar to download into a collection.</p>}
       </div>
 
       {queue.length > 0 && (
-        <div className="rounded-xl border border-subtle p-2" style={{ background: "var(--bg-card-glass)" }}>
+        <div className="rounded-lg border border-subtle p-1.5" style={{ background: "var(--bg-card-glass)" }}>
           {queue.some((r) => r.status === "failed") && (
-            <button onClick={retryFailed} className="mb-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-accent hover:bg-[var(--bg-elev)]">
-              <RotateCw size={13} /> Retry all failed
+            <button onClick={retryFailed} className="mb-1 flex h-7 items-center gap-1.5 rounded-lg border border-subtle bg-elev px-2.5 text-[11.5px] text-text-secondary transition-colors hover:border-strong hover:text-text-primary">
+              <RotateCw size={12} /> Retry all failed
             </button>
           )}
           {queue.map((r) => {
             const isPl = !!r.plCount && r.plCount !== "1"; const idx = parseInt(r.plIndex || "0") || 0; const cnt = parseInt(r.plCount || "0") || 0;
             const trackPct = parseInt(r.pct) || 0; const pct = isPl && cnt ? Math.round(((idx - 1 + trackPct / 100) / cnt) * 100) : trackPct;
             return (
-              <div key={r.id} className="rounded-lg px-3 py-2.5">
-                <div className="flex items-center gap-3">
-                  {r.status === "downloading" ? <Loader2 size={14} className="shrink-0 animate-spin text-accent" /> : r.status === "done" ? <Check size={14} className="shrink-0 text-ok" /> : r.status === "failed" ? <X size={14} className="shrink-0 text-danger" /> : <div className="h-3.5 w-3.5 shrink-0 rounded-full border border-subtle" />}
-                  <span className="flex-1 truncate text-sm text-text-primary">{isPl ? `${r.plTitle || "Playlist"} — ${idx}/${cnt}` : r.title}</span>
+              <div key={r.id} className="group rounded-md px-2.5 py-2 transition-colors hover:bg-white/5">
+                <div className="flex items-center gap-2">
+                  {r.status === "downloading" ? <Loader2 size={14} className="shrink-0 animate-spin text-text-secondary" /> : r.status === "done" ? <Check size={14} className="shrink-0 text-green-400" /> : r.status === "failed" ? <X size={14} className="shrink-0 text-red-400" /> : <div className="h-3.5 w-3.5 shrink-0 rounded-full border border-strong" />}
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">{isPl ? `${r.plTitle || "Playlist"} — ${idx}/${cnt}` : r.title}</span>
                   {r.status === "downloading" && <span className="shrink-0 text-[11px] tabular-nums text-text-muted">{r.speed} · {r.eta}</span>}
-                  {r.status === "downloading" && <button onClick={() => cancelOne(r.id)} className="text-text-muted hover:text-danger"><X size={13} /></button>}
-                  {r.status === "failed" && <button onClick={() => retryOne(r.id)} title="Retry" className="text-text-muted hover:text-accent"><RotateCw size={13} /></button>}
+                  {r.status === "downloading" && <button onClick={() => cancelOne(r.id)} title="Cancel" className={dangerBtn + " opacity-0 group-hover:opacity-100"}><X size={13} /></button>}
+                  {r.status === "failed" && <button onClick={() => retryOne(r.id)} title="Retry" className={iconBtn}><RotateCw size={13} /></button>}
                 </div>
                 {(r.status === "downloading" || r.status === "queued") && <div className="mt-2 h-1 w-full overflow-hidden rounded-full" style={{ background: "var(--bg-elev)" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--accent)" }} /></div>}
-                {r.status === "failed" && <p className="mt-1 truncate text-[11px] text-danger">{r.error}</p>}
+                {r.status === "failed" && <p className="mt-1 truncate pl-[22px] text-[11px] text-red-400">{r.error}</p>}
               </div>
             );
           })}
         </div>
       )}
 
-      <div className="rounded-xl border border-subtle p-2" style={{ background: "var(--bg-card-glass)" }}>
-        <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Recent downloads</div>
-        {history.length === 0 ? <p className="px-3 py-4 text-sm text-text-muted">Nothing yet.</p> : (
-          <div className="space-y-0.5">
+      <div className="rounded-lg border border-subtle p-1.5" style={{ background: "var(--bg-card-glass)" }}>
+        <div className={heading + " flex h-7 items-center px-2.5"}>Recent downloads</div>
+        {history.length === 0 ? <p className="px-2.5 pb-2 pt-1 text-[12px] text-text-muted">Nothing downloaded yet. Paste a link above and press Download.</p> : (
+          <div>
             {history.slice(0, 30).map((h) => (
-              <div key={h.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/[0.02]">
-                {h.status === "done" ? <Check size={13} className="shrink-0 text-ok" /> : <AlertTriangle size={13} className="shrink-0 text-danger" />}
-                <span className="flex-1 truncate text-sm text-text-secondary">{h.title}</span>
-                {h.status === "failed" && h.url && <button onClick={() => enqueue([{ url: h.url, title: h.title }], target, h.quality || "0")} title="Retry" className="text-text-muted hover:text-accent"><RotateCw size={13} /></button>}
-                {h.filePath && h.status === "done" && <button onClick={() => player.play([{ path: h.filePath!, title: h.title }], 0)} title="Play" className="text-text-muted hover:text-text-primary"><Play size={13} /></button>}
-                {h.filePath && <button onClick={() => revealInFolder(h.filePath!)} title="Reveal" className="text-text-muted hover:text-text-primary"><FolderOpen size={13} /></button>}
+              <div key={h.id} className="group flex h-6 items-center gap-2 rounded-md px-2.5 transition-colors hover:bg-white/5">
+                {h.status === "done" ? <Check size={13} className="shrink-0 text-green-400" /> : <AlertTriangle size={13} className="shrink-0 text-red-400" />}
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-secondary group-hover:text-text-primary">{h.title}</span>
+                <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                  {h.status === "failed" && h.url && <button onClick={() => enqueue([{ url: h.url, title: h.title }], target, h.quality || "0")} title="Retry" className={iconBtn}><RotateCw size={13} /></button>}
+                  {h.filePath && h.status === "done" && <button onClick={() => player.play([{ path: h.filePath!, title: h.title }], 0)} title="Play" className={iconBtn}><Play size={13} /></button>}
+                  {h.filePath && <button onClick={() => revealInFolder(h.filePath!)} title="Reveal" className={iconBtn}><FolderOpen size={13} /></button>}
+                </div>
               </div>
             ))}
           </div>
@@ -630,46 +669,47 @@ function DiscoverPanel({ folders, onSend }: {
   return (
     <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
       <div className="flex items-center gap-2">
-        <Sparkles size={22} style={{ color: "var(--accent)" }} />
-        <h1 className="text-2xl font-bold text-text-primary">Discover</h1>
-        {sugg && <span className="text-xs text-text-muted">updated {relDays(sugg.generated_at)}</span>}
+        <Sparkles size={18} className="text-text-muted" />
+        <h1 className="text-[20px] font-semibold text-text-primary">Discover</h1>
+        {sugg && <span className="text-[11.5px] text-text-muted">updated {relDays(sugg.generated_at)}</span>}
       </div>
 
       {/* Taste profile — MANUAL block editable, AUTO shown read-only */}
-      <div className="rounded-xl border border-subtle p-4" style={{ background: "var(--bg-card-glass)" }}>
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Your taste</div>
+      <div className="rounded-lg border border-subtle p-3" style={{ background: "var(--bg-card-glass)" }}>
+        <div className={heading + " mb-2"}>Your taste</div>
         {splitTaste(taste).auto && (
-          <p className="mb-3 whitespace-pre-wrap rounded-lg p-3 text-xs leading-relaxed text-text-secondary" style={{ background: "var(--bg-elev)" }}>
+          <p className="mb-2.5 whitespace-pre-wrap rounded-lg border border-subtle bg-elev p-2.5 text-[12px] leading-relaxed text-text-secondary">
             {splitTaste(taste).auto.replace(/<!--.*?-->/gs, "").replace(/^#.*$/gm, "").trim()}
           </p>
         )}
         <textarea value={manual} onChange={(e) => setManual(e.target.value)} onBlur={saveManual} rows={3}
           placeholder="Add your own notes — favourite artists, genres, moods you want more of…"
-          className="scroll-thin w-full resize-none rounded-lg px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-muted" style={{ background: "var(--bg-elev)" }} />
+          className={field + " scroll-thin block w-full resize-none px-2.5 py-2 text-text-primary"} />
       </div>
 
-      {/* Discover controls */}
+      {/* Discover controls. The accent goes to what comes next: Discover until there are songs,
+          then Download selected. */}
       <div className="flex flex-wrap items-center gap-2">
-        <select value={count} onChange={(e) => setCount(Number(e.target.value))} className="rounded-lg px-3 py-2 text-sm text-text-secondary outline-none" style={{ background: "var(--bg-elev)" }}>
+        <select value={count} onChange={(e) => setCount(Number(e.target.value))} className={field + " h-8 px-2.5 text-text-secondary"}>
           {[5, 10, 15, 20].map((n) => <option key={n} value={n}>{n} songs</option>)}
         </select>
-        <select value={target} onChange={(e) => setTarget(e.target.value)} className="max-w-[200px] rounded-lg px-3 py-2 text-sm text-text-secondary outline-none" style={{ background: "var(--bg-elev)" }} title="Download into folder">
+        <select value={target} onChange={(e) => setTarget(e.target.value)} className={field + " h-8 max-w-[200px] px-2.5 text-text-secondary"} title="Download into folder">
           {folders.length === 0 && <option value="">No folder — add one first</option>}
           {folders.map((f) => <option key={f.id} value={f.path}>{f.name}</option>)}
         </select>
         <button onClick={discover} disabled={discovering}
-          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-glow disabled:opacity-60" style={{ background: "var(--accent-strong)" }}>
-          {discovering ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+          className={songs.length ? secondaryBtn : primaryBtn} style={songs.length ? undefined : accentFill}>
+          {discovering ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           {discovering ? "Finding songs…" : sugg ? "Refresh" : "Discover"}
         </button>
         {songs.length > 0 && (
           <>
-            <button onClick={toggleAll} className="rounded-lg border border-subtle px-3 py-2 text-sm text-text-secondary hover:text-text-primary">
+            <button onClick={toggleAll} className={secondaryBtn}>
               {songs.every((s) => checked[s.id]) ? "Clear" : "Select all"}
             </button>
             <button onClick={downloadSelected} disabled={!anyChecked || !target}
-              className="ml-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: "var(--accent-strong)" }}>
-              {sent ? <Check size={15} /> : <Download size={15} />}
+              className={primaryBtn + " ml-auto"} style={accentFill}>
+              {sent ? <Check size={14} /> : <Download size={14} />}
               {sent ? "Sent to Downloads" : "Download selected"}
             </button>
           </>
@@ -677,10 +717,13 @@ function DiscoverPanel({ folders, onSend }: {
       </div>
 
       {discovering && songs.length === 0 && (
-        <div className="flex items-center gap-2 px-1 py-6 text-sm text-text-muted"><Loader2 size={15} className="animate-spin" /> The AI is searching for new songs in your taste… (~40s)</div>
+        <div className="flex items-center gap-2 px-1 py-6 text-[12.5px] text-text-muted"><Loader2 size={14} className="animate-spin" /> The AI is searching for new songs in your taste… (~40s)</div>
       )}
       {!discovering && songs.length === 0 && (
-        <div className="px-1 py-8 text-sm text-text-muted">No suggestions yet. Set your taste above, then hit Discover.</div>
+        <div className="flex items-start gap-2.5 rounded-lg border border-subtle bg-elev px-3 py-3 text-[12.5px] leading-relaxed text-text-muted">
+          <Sparkles size={16} className="mt-0.5 shrink-0" />
+          <span>No suggestions yet. Say what you like under Your taste, then press Discover for songs to try.</span>
+        </div>
       )}
 
       {/* Suggestion cards */}
@@ -689,7 +732,7 @@ function DiscoverPanel({ folders, onSend }: {
           const thumb = thumbs[s.id];
           const got = isDownloaded(s);
           return (
-            <label key={s.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-subtle p-3 transition hover:border-strong"
+            <label key={s.id} className="flex cursor-pointer items-start gap-3 rounded-lg border border-subtle p-3 transition-colors hover:border-strong"
               style={{ background: "var(--bg-card-glass)", opacity: got ? 0.55 : 1 }}>
               <input type="checkbox" checked={!!checked[s.id]} onChange={(e) => setChecked((c) => ({ ...c, [s.id]: e.target.checked }))}
                 className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent)]" />
@@ -706,11 +749,11 @@ function DiscoverPanel({ folders, onSend }: {
               </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-semibold" style={{ color: isPlaying(s.id) ? "var(--accent)" : "var(--text-primary)" }}>{s.title}</span>
-                  {got && <span className="flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ok" style={{ background: "var(--bg-elev)" }}><Check size={9} /> Got it</span>}
+                  <span className="truncate text-[12.5px] font-medium" style={{ color: isPlaying(s.id) ? "var(--accent)" : "var(--text-primary)" }}>{s.title}</span>
+                  {got && <span className="flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10.5px]" style={chip("rgb(var(--tone-green-400))")}><Check size={10} /> Got it</span>}
                 </div>
-                <div className="truncate text-xs text-text-muted">{s.artist}</div>
-                <div className="mt-1 text-[11px] leading-snug text-text-secondary">{s.why}</div>
+                <div className="truncate text-[11.5px] text-text-muted">{s.artist}</div>
+                <div className="mt-1 text-[11.5px] leading-snug text-text-secondary">{s.why}</div>
               </div>
             </label>
           );
