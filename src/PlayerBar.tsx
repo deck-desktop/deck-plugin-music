@@ -51,16 +51,16 @@ export default function PlayerBar() {
   const controls = (
     <>
       <button onClick={() => p.setShuffle(!p.shuffle)} title="Shuffle"
-        className="grid h-8 w-8 place-items-center rounded-md transition"
+        className="grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-white/5"
         style={{ color: p.shuffle ? "var(--accent)" : "var(--text-muted)" }}><Shuffle size={15} /></button>
-      <button onClick={p.prev} title="Previous" className="grid h-8 w-8 place-items-center rounded-md text-text-secondary transition hover:text-text-primary"><SkipBack size={17} /></button>
+      <button onClick={p.prev} title="Previous" className="grid h-8 w-8 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary"><SkipBack size={17} /></button>
       <button onClick={p.toggle} title={p.playing ? "Pause" : "Play"}
         className="grid h-9 w-9 place-items-center rounded-full text-white shadow-glow" style={{ background: "var(--accent-strong)" }}>
         {p.playing ? <Pause size={17} /> : <Play size={17} />}
       </button>
-      <button onClick={p.next} title="Next" className="grid h-8 w-8 place-items-center rounded-md text-text-secondary transition hover:text-text-primary"><SkipForward size={17} /></button>
+      <button onClick={p.next} title="Next" className="grid h-8 w-8 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary"><SkipForward size={17} /></button>
       <button onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}
-        className="grid h-8 w-8 place-items-center rounded-md transition"
+        className="grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-white/5"
         style={{ color: p.repeat !== "off" ? "var(--accent)" : "var(--text-muted)" }}>
         {p.repeat === "one" ? <Repeat1 size={15} /> : <Repeat size={15} />}
       </button>
@@ -73,7 +73,7 @@ export default function PlayerBar() {
         {p.current.artPath ? <img src={/^https?:/.test(p.current.artPath) ? p.current.artPath : convertFileSrc(p.current.artPath)} className="h-full w-full object-cover" alt="" /> : <Music2 size={16} className="text-text-muted" />}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-text-primary" title={title}>{title}</div>
+        <div className="truncate text-[12.5px] font-medium text-text-primary" title={title}>{title}</div>
         {p.current.artist && <div className="truncate text-[11px] text-text-muted">{p.current.artist}</div>}
       </div>
     </div>
@@ -84,12 +84,12 @@ export default function PlayerBar() {
   if (placement === "floating") {
     return (
       <motion.div drag dragMomentum={false} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="no-drag absolute bottom-6 right-6 z-30 w-80 rounded-2xl p-3 shadow-card ring-1 ring-inset ring-white/10 backdrop-blur-xl"
+        className="no-drag absolute bottom-6 right-6 z-30 w-80 rounded-[10px] border border-subtle p-3 shadow-2xl backdrop-blur-xl"
         style={{ background: "var(--bg-card)" }}>
         <div className="mb-2 flex items-center justify-between">{meta}
           <div className="ml-2 flex shrink-0 items-center">
             <VolumeControl volume={p.volume} setVolume={p.setVolume} />
-            <button onClick={p.clear} className="grid h-6 w-6 place-items-center rounded text-text-muted hover:text-text-primary" title="Close"><X size={13} /></button>
+            <button onClick={p.clear} className="grid h-6 w-6 place-items-center rounded-md text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary" title="Close"><X size={13} /></button>
           </div>
         </div>
         <div className="mb-2">{seek}</div>
@@ -110,7 +110,7 @@ export default function PlayerBar() {
       </div>
       <VolumeControl volume={p.volume} setVolume={p.setVolume} />
       <button onClick={p.clear} title="Close player"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-text-muted transition hover:bg-elev hover:text-text-primary"><X size={15} /></button>
+        className="grid size-7 shrink-0 place-items-center rounded-lg text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary"><X size={15} /></button>
     </motion.div>
   );
 }
@@ -127,14 +127,14 @@ function VolumeControl({ volume, setVolume }: { volume: number; setVolume: (v: n
   return (
     <div className="relative shrink-0" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button onClick={toggleMute} title="Volume"
-        className="grid h-8 w-8 place-items-center rounded-md text-text-muted transition hover:text-text-primary">
+        className="grid h-8 w-8 place-items-center rounded-lg text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary">
         <Icon size={16} />
       </button>
       {open && (
         // No gap to the icon (pt-2 keeps the visual spacing but stays hoverable) so moving
         // the cursor up to the slider doesn't cross a dead zone that dismisses the popup.
         <div className="absolute bottom-full left-1/2 z-40 -translate-x-1/2 pb-1 pt-2">
-          <div className="rounded-lg p-2.5 shadow-card ring-1 ring-inset ring-white/10" style={{ background: "var(--bg-card)" }}>
+          <div className="rounded-[10px] border border-subtle p-2.5 shadow-2xl" style={{ background: "var(--bg-card)" }}>
             <input type="range" min={0} max={1} step={0.01} value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
               className="h-24 w-1.5 cursor-pointer accent-[var(--accent)]"
