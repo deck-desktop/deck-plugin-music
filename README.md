@@ -1,40 +1,43 @@
-# Music (Deck plugin)
+# Music for Deck
 
-Deck's music feature, living outside the binary: library, playlists, the download queue,
-Discover, the player, and the bar along the bottom.
+A music player for the folders you already keep music in, with YouTube downloads and song
+suggestions. Open it from the **+** beside your tabs and choose **Music**; while something plays,
+a player bar stays at the bottom of the window whatever tab you are on.
 
-## Build
+## Library and player
 
-```sh
-node plugins/music/build.mjs
-```
+- Add any folder from the sidebar; its tracks show with the title, artist, album and cover art
+  from their tags. Removing a folder takes it out of the library, not off disk.
+- Heart a track to keep it in **Favorites**, or add it to a **playlist** from its menu. Play or
+  shuffle a whole folder or playlist, and search within it.
+- The bar has shuffle, repeat (all or one), seek and volume, and the Windows media keys and
+  now-playing panel control it. The queue and volume are remembered. Settings > Plugins > Music
+  sets the bar fixed along the bottom or floating.
 
-See [../README.md](../README.md) for how the build and the shims work.
+## Downloads
 
-## Install
+- Paste links, one per line, and pick a quality (best, 192k or 128k) and a folder. Each becomes
+  an MP3 with its tags and cover art; a playlist link fills a folder of its own, numbered in order.
+- A queue downloads one at a time, with progress, cancel and retry, and keeps going while you use
+  other tabs. A YouTube Mix or Radio link asks first, since one can hold hundreds of tracks.
 
-Copy `plugin.json`, `plugin.js` and `mcp.js` into `%APPDATA%\Deck\plugins\music\` (`Deck-Dev` for a debug
-build) and restart Deck.
+## Discover
 
-## What it exports
+Write what you like under **Your taste** and press **Discover**: Claude Code searches the web and
+suggests 5 to 20 songs you do not have yet, each with a reason, and keeps a short summary of your
+taste from your library beside your own words. Preview a suggestion, then download the ones you
+tick.
 
-| Export | Where it renders |
-|---|---|
-| `default` | the sidebar module |
-| `Provider` | wraps the whole app, so playback survives navigating away |
-| `Bar` | the strip below the active module |
+## Needs
 
-## What Deck provides
+- Downloads: Python, yt-dlp and ffmpeg on PATH. Settings > Plugins > Music checks for each and
+  shows the command that installs what is missing. Playing your library needs none of them.
+- Discover: Claude Code (the `claude` command) on PATH.
 
-Nothing music-specific except two native pieces that no amount of JavaScript replaces:
+The library, playlists, download history, player state and taste profile are kept in
+`data\music\` in Deck's config folder. Your music files stay where they are.
 
-- `audio_tags` — ID3 tags and cover art (lofty)
-- `media_session` — the Windows media keys and the OS now-playing panel (souvlaki)
+## For agents
 
-Everything else is generic: `proc_stream` for running yt-dlp, `fs_list`, `fs_open`, `dirs_download`, and config read/write.
-
-## Where the music is
-
-Wherever you keep it. **Add folder** in the sidebar adds any folder, and downloads go into the one
-you pick. Paths are stored as full paths. A library that stored them
-relative to the Obsidian vault is converted once, when Deck starts.
+`deck_download_music` in Deck's MCP server downloads a link, or a whole playlist, as MP3 into the
+music download folder.
