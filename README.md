@@ -4,6 +4,8 @@ A music player for the folders you already keep music in, with YouTube downloads
 suggestions. Open it from the **+** beside your tabs and choose **Music**; while something plays,
 a player bar stays at the bottom of the window whatever tab you are on.
 
+![Music](docs/screenshot.png)
+
 ## Library and player
 
 - Add any folder from the sidebar; its tracks show with the title, artist, album and cover art
