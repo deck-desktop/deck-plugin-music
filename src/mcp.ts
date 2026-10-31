@@ -22,7 +22,7 @@ import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { DeckMcp, McpServer } from "../shim/mcp.js";
-import { ytdlpArgs } from "./ytdlp";
+import { pythonFor, ytdlpArgs } from "./ytdlp";
 
 interface DlSettings { target?: string; quality?: string }
 
@@ -50,7 +50,7 @@ export function register(server: McpServer, deck: DeckMcp) {
 
       return await new Promise((resolve) => {
         // 30-min cap covers big playlists; a hung yt-dlp still returns instead of wedging.
-        execFile("python", args, { timeout: 30 * 60_000, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+        execFile(pythonFor(process.platform === "win32"), args, { timeout: 30 * 60_000, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
           if (err) {
             const line = (stderr || err.message).trim().split("\n").pop() ?? "download failed";
             resolve(ok(`Download failed: ${line}`));

@@ -75,7 +75,7 @@ const fail = await build({
       b.onResolve({ filter: /shim\/bridge\.js$|@tauri-apps\/api\/event$/ },
         (a) => ({ path: a.path, namespace: "stub" }));
       b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-        contents: "export const procStream = async () => ({});" +
+        contents: "export const procStream = async () => ({}); export const isWindows = () => true;" +
                   "export const procKill = async () => {};" +
                   "export const fsList = async () => [];" +
                   "export const configRead = async () => '';" +
@@ -120,7 +120,7 @@ const tools = await build({
       b.onResolve({ filter: /shim\/bridge\.js$|@tauri-apps\/api\/event$/ },
         (a) => ({ path: a.path, namespace: "stub" }));
       b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-        contents: "export const procStream = async () => ({});" +
+        contents: "export const procStream = async () => ({}); export const isWindows = () => true;" +
                   "export const listen = async () => () => {};",
         loader: "js",
       }));

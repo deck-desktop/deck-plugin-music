@@ -5,10 +5,10 @@
 // Deck contributes proc_stream and fs_list; the rest is this plugin's
 // business. The download flags themselves are in ytdlp.ts, shared with the agent-facing tool.
 import {
-  procStream, procKill, fsList, configRead, configWrite,
+  procStream, procKill, fsList, configRead, configWrite, isWindows,
 } from "../shim/bridge.js";
 import { listen } from "@tauri-apps/api/event";
-import { ytdlpArgs } from "./ytdlp";
+import { pythonFor, ytdlpArgs } from "./ytdlp";
 
 // Audio only: this is a music library, and a video file is something nothing else here can
 // play, sort or tag. There is no format to choose, so there is no parameter for one.
@@ -86,7 +86,7 @@ export async function downloadMedia(
   });
 
   try {
-    const r = await procStream(id, "python", args, "");
+    const r = await procStream(id, pythonFor(isWindows()), args, "");
 
     return {
       id, ok: r.code === 0 && !r.cancelled, title,
@@ -144,7 +144,7 @@ export async function resolveStreamUrl(query: string): Promise<string> {
     if (e.payload.id === id && e.payload.stream === "stdout" && !out) out = e.payload.line.trim();
   });
   try {
-    const r = await procStream(id, "python",
+    const r = await procStream(id, pythonFor(isWindows()),
       ["-m", "yt_dlp", "-g", "-f", "bestaudio/best", "--no-playlist", "--no-warnings", query], "");
     if (r.code !== 0 || !out) throw new Error(`could not resolve a stream for "${query}"`);
     return out;
@@ -168,7 +168,7 @@ export async function musicThumbs(queries: string[]): Promise<string[]> {
       if (e.payload.id === id && e.payload.stream === "stdout" && !url) url = e.payload.line.trim();
     });
     try {
-      const r = await procStream(id, "python",
+      const r = await procStream(id, pythonFor(isWindows()),
         ["-m", "yt_dlp", "--print", "thumbnail", "--no-warnings", "--no-playlist", `ytsearch1:${q}`], "");
       return r.code === 0 ? url : "";
     } catch {

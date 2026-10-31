@@ -32,10 +32,16 @@ export function cleanUrl(url: string): string {
 
 /** Where the files land. A playlist gets its own folder, numbered in order. */
 export function outputTemplate(dir: string, isPlaylist: boolean): string {
+  // The folder's own separator: a Windows folder has backslashes, a Linux one slashes.
+  const s = dir.includes("\\") ? "\\" : "/";
   return isPlaylist
-    ? `${dir}\\%(playlist_title)s\\%(playlist_index)s - %(title)s.%(ext)s`
-    : `${dir}\\%(title)s.%(ext)s`;
+    ? `${dir}${s}%(playlist_title)s${s}%(playlist_index)s - %(title)s.%(ext)s`
+    : `${dir}${s}%(title)s.%(ext)s`;
 }
+
+/** The Python to run yt-dlp with: `python` on Windows; `python3` elsewhere, where Debian and
+ *  Ubuntu have no `python`. */
+export const pythonFor = (windows: boolean) => (windows ? "python" : "python3");
 
 /**
  * The full argv after `python`, ready to spawn.

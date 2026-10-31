@@ -8,7 +8,8 @@
 // Checked here rather than by Deck: these belong to this plugin. Deck's first-run screen used to
 // probe them, which meant core knew about a plugin's dependencies and reported on them before
 // anyone had opened Music.
-import { procStream } from "../shim/bridge.js";
+import { procStream, isWindows } from "../shim/bridge.js";
+import { pythonFor } from "./ytdlp";
 import { listen } from "@tauri-apps/api/event";
 
 export interface ToolState {
@@ -62,10 +63,10 @@ const missing = (detail: string): ToolState => ({ ok: false, detail });
  */
 export async function checkTools(): Promise<ToolReport> {
   const [python, ytdlp, ffmpeg] = await Promise.all([
-    firstLine("python", ["--version"])
+    firstLine(pythonFor(isWindows()), ["--version"])
       .then((v) => found(v))
       .catch(() => missing("not on PATH")),
-    firstLine("python", ["-m", "yt_dlp", "--version"])
+    firstLine(pythonFor(isWindows()), ["-m", "yt_dlp", "--version"])
       .then((v) => found(`yt-dlp ${v}`))
       .catch(() => missing("not installed")),
     firstLine("ffmpeg", ["-version"])
@@ -84,6 +85,9 @@ export async function checkTools(): Promise<ToolReport> {
 /** The command that fixes a row, or "" when there is nothing to fix. */
 export function fixFor(tool: keyof ToolReport, report: ToolReport): string {
   if (report[tool].ok) return "";
+  // Off Windows: apt, Debian's and Ubuntu's, whose yt-dlp package is the module python3 -m runs
+  // (pip refuses to install into a system Python there).
+  if (!isWindows()) return { python: "sudo apt install python3", ytdlp: report.python.ok ? "sudo apt install yt-dlp" : "", ffmpeg: "sudo apt install ffmpeg" }[tool];
   switch (tool) {
     // winget ships with Windows 11, which makes it the one installer that can be assumed.
     case "python": return "winget install --id Python.Python.3.13 -e";
