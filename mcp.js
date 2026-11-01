@@ -9,8 +9,10 @@ function cleanUrl(url) {
   return parts.length <= 1 ? parts.join("") : `${parts[0]}?${parts.slice(1).join("&")}`;
 }
 function outputTemplate(dir, isPlaylist) {
-  return isPlaylist ? `${dir}\\%(playlist_title)s\\%(playlist_index)s - %(title)s.%(ext)s` : `${dir}\\%(title)s.%(ext)s`;
+  const s = dir.includes("\\") ? "\\" : "/";
+  return isPlaylist ? `${dir}${s}%(playlist_title)s${s}%(playlist_index)s - %(title)s.%(ext)s` : `${dir}${s}%(title)s.%(ext)s`;
 }
+var pythonFor = (windows) => windows ? "python" : "python3";
 function ytdlpArgs(opts) {
   const clean = cleanUrl(opts.url);
   const isPlaylist = clean.includes("list=");
@@ -60,7 +62,7 @@ function register(server, deck) {
       const dir = outDir ?? dl.target ?? join(homedir(), "Downloads");
       const args = ytdlpArgs({ url, dir, quality: q, progress: false });
       return await new Promise((resolve) => {
-        execFile("python", args, { timeout: 30 * 6e4, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+        execFile(pythonFor(process.platform === "win32"), args, { timeout: 30 * 6e4, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
           if (err) {
             const line = (stderr || err.message).trim().split("\n").pop() ?? "download failed";
             resolve(ok(`Download failed: ${line}`));
