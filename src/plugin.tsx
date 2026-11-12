@@ -32,5 +32,12 @@ export const Bar = PlayerBar;
 
 // Rendered by Deck in Settings -> Plugins, under this plugin name.
 export const Settings = MusicSettings;
+import { disposeDownloads } from "./downloads";
+import { startListen, disposeListen } from "./listen";
+
+// Listen together: a channel on every team from load, so an invite arrives with the tab closed.
+// Without the network permission it is off, and the player works as before.
+try { startListen(); } catch (e) { console.warn("[music] listen together is off", e); }
+
 /** Called by Deck before a reload re-imports this plugin, so the old copy stops listening. */
-export { disposeDownloads as dispose } from "./downloads";
+export function dispose() { disposeDownloads(); disposeListen(); }

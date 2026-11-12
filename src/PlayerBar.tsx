@@ -4,6 +4,7 @@ import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Music2, V
 import { usePlayer, usePlayerPosition } from "./player";
 import { configRead, convertFileSrc } from "../shim/bridge.js";
 import { useEffect, useRef, useState } from "react";
+import ListenButton from "./ListenButton";
 
 const fmt = (s: number) => {
   if (!s || !isFinite(s)) return "0:00";
@@ -45,36 +46,43 @@ export default function PlayerBar() {
     return () => un?.();
   }, []);
 
-  if (!p.current) return null;
+  if (!p.current && !p.listening) return null;
+  // Listening, before the host's first word: the bar stays, so Leave is in reach.
+  const cur = p.current ?? { path: "", title: "Waiting for the host…" };
 
-  const title = p.current.title || p.current.path.split(/[\\/]/).pop() || "";
+  const title = cur.title || cur.path.split(/[\\/]/).pop() || "";
+  // A listener has play/pause only: the host picks the track and where it is.
   const controls = (
     <>
+      {!p.listening && <>
       <button onClick={() => p.setShuffle(!p.shuffle)} title="Shuffle"
         className="grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-white/5"
         style={{ color: p.shuffle ? "var(--accent)" : "var(--text-muted)" }}><Shuffle size={15} /></button>
       <button onClick={p.prev} title="Previous" className="grid h-8 w-8 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary"><SkipBack size={17} /></button>
+      </>}
       <button onClick={p.toggle} title={p.playing ? "Pause" : "Play"}
         className="grid h-9 w-9 place-items-center rounded-full text-white shadow-glow" style={{ background: "var(--accent-strong)" }}>
         {p.playing ? <Pause size={17} /> : <Play size={17} />}
       </button>
+      {!p.listening && <>
       <button onClick={p.next} title="Next" className="grid h-8 w-8 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary"><SkipForward size={17} /></button>
       <button onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}
         className="grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-white/5"
         style={{ color: p.repeat !== "off" ? "var(--accent)" : "var(--text-muted)" }}>
         {p.repeat === "one" ? <Repeat1 size={15} /> : <Repeat size={15} />}
       </button>
+      </>}
     </>
   );
 
   const meta = (
     <div className="flex min-w-0 items-center gap-3">
       <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md" style={{ background: "var(--bg-elev)" }}>
-        {p.current.artPath ? <img src={/^https?:/.test(p.current.artPath) ? p.current.artPath : convertFileSrc(p.current.artPath)} className="h-full w-full object-cover" alt="" /> : <Music2 size={16} className="text-text-muted" />}
+        {cur.artPath ? <img src={/^https?:/.test(cur.artPath) ? cur.artPath : convertFileSrc(cur.artPath)} className="h-full w-full object-cover" alt="" /> : <Music2 size={16} className="text-text-muted" />}
       </div>
       <div className="min-w-0">
         <div className="truncate text-[12.5px] font-medium text-text-primary" title={title}>{title}</div>
-        {p.current.artist && <div className="truncate text-[11px] text-text-muted">{p.current.artist}</div>}
+        {cur.artist && <div className="truncate text-[11px] text-text-muted">{cur.artist}</div>}
       </div>
     </div>
   );
@@ -88,6 +96,7 @@ export default function PlayerBar() {
         style={{ background: "var(--bg-card)" }}>
         <div className="mb-2 flex items-center justify-between">{meta}
           <div className="ml-2 flex shrink-0 items-center">
+            <ListenButton />
             <VolumeControl volume={p.volume} setVolume={p.setVolume} />
             <button onClick={p.clear} className="grid h-6 w-6 place-items-center rounded-md text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary" title="Close"><X size={13} /></button>
           </div>
@@ -108,8 +117,9 @@ export default function PlayerBar() {
         <div className="flex items-center justify-center gap-1">{controls}</div>
         {seek}
       </div>
+      <ListenButton />
       <VolumeControl volume={p.volume} setVolume={p.setVolume} />
-      <button onClick={p.clear} title="Close player"
+      <button onClick={p.clear} title={p.listening ? "Leave" : "Close player"}
         className="grid size-7 shrink-0 place-items-center rounded-lg text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary"><X size={15} /></button>
     </motion.div>
   );
