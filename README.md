@@ -16,6 +16,15 @@ a player bar stays at the bottom of the window whatever tab you are on.
   now-playing panel control it. The queue and volume are remembered. Settings > Plugins > Music
   sets the bar fixed along the bottom or floating.
 
+## Listen together
+
+- The people button on the bar invites a whole team, or one person in it, to hear what you play
+  (teams are made in Deck's Settings > Teams). They get a notification with **Join**.
+- Whoever invited picks the tracks, seeks and pauses; everyone hears the same moment. A listener
+  can pause for themselves or leave, and their own queue is left as it was.
+- Your files are sent to the listeners as they play, encrypted, and kept only in memory. Discover
+  previews are not shared.
+
 ## Downloads
 
 - Paste links, one per line, and pick a quality (best, 192k or 128k) and a folder. Each becomes
