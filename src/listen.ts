@@ -144,7 +144,9 @@ export function stopHosting() {
 const pending = new Map<string, { team: string; host: Member }>();
 const blobs = new Map<string, string>();
 /** Tracks being received; an entry with n = 0 has been asked for and nothing has come yet. */
-const parts = new Map<string, { n: number; got: Uint8Array[]; count: number }>();
+const parts = new Map<string, { n: number; got: Uint8Array[]; count: number; at: number }>();
+/** A track with no piece for this long is asked for again: a piece was lost on the way. */
+const STALL = 15_000;
 let want: { track: Shared | null; next: Shared | null } = { track: null, next: null };
 
 export function join(s: string) {
@@ -174,7 +176,7 @@ function fetchNext() {
   for (const t of [want.track, want.next]) {
     if (!t || t.stream || blobs.has(t.id)) continue;
     if (parts.has(t.id)) return;
-    parts.set(t.id, { n: 0, got: [], count: 0 });
+    parts.set(t.id, { n: 0, got: [], count: 0, at: Date.now() });
     void ch()?.send({ t: "get", s: sid, id: t.id }, view.host.id);
     return;
   }
@@ -197,7 +199,7 @@ function onState(m: Extract<Msg, { t: "state" }>) {
   want = { track, next };
   const keep = new Set([track?.id, next?.id]);
   for (const [id, u] of blobs) if (!keep.has(id)) { URL.revokeObjectURL(u); blobs.delete(id); }
-  for (const id of [...parts.keys()]) if (!keep.has(id)) parts.delete(id);
+  for (const [id, p] of [...parts]) if (!keep.has(id) || Date.now() - p.at > STALL) parts.delete(id);
   set({ ...view, track, url: (track && blobs.get(track.id)) ?? null, playing: m.playing, pos: m.pos, at: Date.now() });
   fetchNext();
 }
@@ -212,6 +214,7 @@ function onChunk(m: Extract<Msg, { t: "chunk" }>) {
   if (!p.got[i]) {
     try { p.got[i] = Uint8Array.from(atob(m.d), (c) => c.charCodeAt(0)); } catch { return; }
     p.count++;
+    p.at = Date.now();
   }
   if (p.count < n) return;
   parts.delete(m.id);
