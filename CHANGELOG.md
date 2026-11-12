@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 (2026-11-12)
+
+- Listen together asks again for a track that stalled, instead of staying silent.
+
 ## 1.4.0 (2026-11-12)
 
 - Listen together: invite a Deck team, or one person in it, to hear what you play as you play it.
