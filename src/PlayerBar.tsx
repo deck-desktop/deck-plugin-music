@@ -92,7 +92,9 @@ export default function PlayerBar() {
 
   if (placement === "floating") {
     return (
-      <motion.div drag dragMomentum={false} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      // Keyed apart from the bar: one element for both kept the card's drag offset when switched to
+      // the bar, which then sat wherever the card had been dragged to.
+      <motion.div key="floating" drag dragMomentum={false} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="no-drag absolute bottom-6 right-6 z-30 w-80 rounded-[10px] border border-subtle p-3 shadow-2xl backdrop-blur-xl"
         style={{ background: "var(--bg-card)" }}>
         <div className="mb-2 flex items-center justify-between">{meta}
@@ -110,7 +112,7 @@ export default function PlayerBar() {
 
   // Fixed bottom bar.
   return (
-    <motion.div initial={{ y: 60 }} animate={{ y: 0 }}
+    <motion.div key="fixed" initial={{ y: 60 }} animate={{ y: 0 }}
       className="relative z-30 flex shrink-0 items-center gap-4 border-t border-subtle px-4 py-2 backdrop-blur-xl"
       style={{ background: "var(--bg-panel, var(--bg-card))" }}>
       <div className="w-56 shrink-0">{meta}</div>
