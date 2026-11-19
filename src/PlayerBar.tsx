@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { listen } from "@tauri-apps/api/event";
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Music2, Volume2, Volume1, VolumeX, X } from "lucide-react";
 import { usePlayer, usePlayerPosition } from "./player";
-import { configRead, convertFileSrc } from "../shim/bridge.js";
-import { useEffect, useRef, useState } from "react";
+import { convertFileSrc } from "../shim/bridge.js";
+import { useRef, useState } from "react";
 import ListenButton from "./ListenButton";
+import { usePlacement } from "./placement";
 
 const fmt = (s: number) => {
   if (!s || !isFinite(s)) return "0:00";
@@ -17,7 +17,7 @@ const fmt = (s: number) => {
  * position — which changes several times a second. Reading it in PlayerBar would re-render the
  * whole bar (artwork, title, every transport button) on each tick to move one slider.
  */
-function SeekBar({ duration, onSeek }: { duration: number; onSeek: (t: number) => void }) {
+export function SeekBar({ duration, onSeek }: { duration: number; onSeek: (t: number) => void }) {
   const position = usePlayerPosition();
   return (
     <div className="flex items-center gap-2">
@@ -30,29 +30,17 @@ function SeekBar({ duration, onSeek }: { duration: number; onSeek: (t: number) =
   );
 }
 
-export default function PlayerBar() {
-  const p = usePlayer();
-  // Placement setting: "fixed" (default) or "floating".
-  const [placement, setPlacement] = useState<"fixed" | "floating">("fixed");
-  useEffect(() => {
-    const load = () => configRead("settings/settings").then((t) => {
-      try { const s = t.trim() ? JSON.parse(t) : {}; setPlacement(s.playerPlacement === "floating" ? "floating" : "fixed"); } catch { /* */ }
-    }).catch((e) => console.warn("[music] settings load failed", e));
-    load();
-    // Re-read when Settings writes the config (the watcher emits config-changed) so
-    // switching placement updates live, without a restart.
-    let un: (() => void) | undefined;
-    listen<string[]>("config-changed", (e) => { if (e.payload.includes("settings/settings")) load(); }).then((u) => (un = u));
-    return () => un?.();
-  }, []);
+type Player = ReturnType<typeof usePlayer>;
+type Cur = NonNullable<Player["current"]>;
 
-  if (!p.current && !p.listening) return null;
-  // Listening, before the host's first word: the bar stays, so Leave is in reach.
-  const cur = p.current ?? { path: "", title: "Waiting for the host…" };
+/** The track playing; while listening, before the host's first word, a stand-in so Leave stays in reach. */
+export const nowPlaying = (p: Player): Cur => p.current ?? { path: "", title: "Waiting for the host…" };
+export const titleOf = (cur: Cur) => cur.title || cur.path.split(/[\\/]/).pop() || "";
 
-  const title = cur.title || cur.path.split(/[\\/]/).pop() || "";
-  // A listener has play/pause only: the host picks the track and where it is.
-  const controls = (
+/** Shuffle, previous, play/pause, next, repeat. A listener has play/pause only: the host picks the
+ *  track and where it is. The bar, the floating card and the footer's menu all draw these. */
+export function Controls({ p }: { p: Player }) {
+  return (
     <>
       {!p.listening && <>
       <button onClick={() => p.setShuffle(!p.shuffle)} title="Shuffle"
@@ -74,8 +62,12 @@ export default function PlayerBar() {
       </>}
     </>
   );
+}
 
-  const meta = (
+/** The cover, the title and the artist. */
+export function Meta({ cur }: { cur: Cur }) {
+  const title = titleOf(cur);
+  return (
     <div className="flex min-w-0 items-center gap-3">
       <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md" style={{ background: "var(--bg-elev)" }}>
         {cur.artPath ? <img src={/^https?:/.test(cur.artPath) ? cur.artPath : convertFileSrc(cur.artPath)} className="h-full w-full object-cover" alt="" /> : <Music2 size={16} className="text-text-muted" />}
@@ -86,7 +78,16 @@ export default function PlayerBar() {
       </div>
     </div>
   );
+}
 
+export default function PlayerBar() {
+  const p = usePlayer();
+  const placement = usePlacement();
+  // In the footer, the footer's readout is the player (FooterPlayer.tsx).
+  if ((!p.current && !p.listening) || placement === "footer") return null;
+  const cur = nowPlaying(p);
+  const controls = <Controls p={p} />;
+  const meta = <Meta cur={cur} />;
   const seek = <SeekBar duration={p.duration} onSeek={p.seek} />;
 
   if (placement === "floating") {
@@ -125,11 +126,14 @@ export default function PlayerBar() {
   );
 }
 
+/** The volume icon: a crossed speaker at 0, a quieter one under half. */
+export const volumeIcon = (volume: number) => (volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2);
+
 // Volume: an icon that reveals a vertical slider on hover. Click the icon to mute/unmute.
 function VolumeControl({ volume, setVolume }: { volume: number; setVolume: (v: number) => void }) {
   const [open, setOpen] = useState(false);
   const prev = useRef(volume || 0.8);
-  const Icon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const Icon = volumeIcon(volume);
   const toggleMute = () => {
     if (volume > 0) { prev.current = volume; setVolume(0); }
     else setVolume(prev.current || 0.8);

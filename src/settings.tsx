@@ -5,11 +5,11 @@
 // heading and the plugin renders whatever controls it has.
 import { useEffect, useState } from "react";
 import { Check, X, Loader2, RefreshCw, Copy } from "lucide-react";
-import { configRead, configWrite, type Settings } from "../shim/bridge.js";
+import { readPlacement, savePlacement, type Placement } from "./placement";
 import { Segmented } from "../shim/ui.js";
 import { checkTools, fixFor, type ToolReport } from "./tools";
 
-type Placement = Settings["playerPlacement"];
+
 
 /** A tool that was found, in the green Deck's other readouts use (a light theme darkens it). */
 const OK = "rgb(var(--tone-green-400))";
@@ -17,6 +17,7 @@ const OK = "rgb(var(--tone-green-400))";
 const OPTIONS: { value: Placement; label: string }[] = [
   { value: "fixed", label: "Fixed bar" },
   { value: "floating", label: "Floating" },
+  { value: "footer", label: "Footer" },
 ];
 
 export default function MusicSettings() {
@@ -33,23 +34,12 @@ export default function MusicSettings() {
   // opens this panel, and a check they have to ask for is one they will not run.
   useEffect(probe, []);
 
-  // Read from Deck's settings file rather than the plugin's own: PlayerBar already reads
-  // playerPlacement from there, and moving the key would strand the value someone has set.
-  useEffect(() => {
-    configRead("settings/settings")
-      .then((t) => { if (t.trim()) setPlacement(JSON.parse(t).playerPlacement ?? "fixed"); })
-      .catch((e) => console.warn("[music] settings load failed", e));
-  }, []);
+  useEffect(() => { readPlacement().then(setPlacement).catch((e) => console.warn("[music] settings load failed", e)); }, []);
 
-  const save = async (next: Placement) => {
+  const save = (next: Placement) => {
     setPlacement(next);
-    // Read-modify-write, because this file is Deck's and holds everything else too. A plugin
-    // writing its own object here would wipe the user's entire configuration.
-    try {
-      const t = await configRead("settings/settings");
-      const all = t.trim() ? JSON.parse(t) : {};
-      await configWrite("settings/settings", JSON.stringify({ ...all, playerPlacement: next }));
-    } catch { /* a failed write leaves the old value; the toggle reverts on next read */ }
+    // A failed write leaves the old value; the control reverts on the next read.
+    savePlacement(next).catch((e) => console.warn("[music] saving the placement failed", e));
   };
 
   const rows: { key: keyof ToolReport; label: string; why: string }[] = [
@@ -63,7 +53,7 @@ export default function MusicSettings() {
     <div className="space-y-4">
       <div>
       <div className="mb-2 text-[12px] text-text-muted">
-        How the mini player appears while something is playing.
+        How the player appears while something is playing: a bar along the bottom, a card you can move, or in the footer, where a click opens it.
       </div>
       <Segmented value={placement} onChange={(v) => void save(v)} options={OPTIONS} layoutId="music-placement" />
       </div>

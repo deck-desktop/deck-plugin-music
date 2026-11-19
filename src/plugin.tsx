@@ -24,11 +24,14 @@
 import Music from "./Music";
 import { PlayerProvider } from "./player";
 import PlayerBar from "./PlayerBar";
+import FooterPlayer from "./FooterPlayer";
 import MusicSettings from "./settings";
 
 export default Music;
 export const Provider = PlayerProvider;
 export const Bar = PlayerBar;
+// The footer readout, when the player is set to show there (Settings › Music › Footer).
+export const Status = FooterPlayer;
 
 // Rendered by Deck in Settings -> Plugins, under this plugin name.
 export const Settings = MusicSettings;

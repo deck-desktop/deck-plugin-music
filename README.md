@@ -14,7 +14,8 @@ a player bar stays at the bottom of the window whatever tab you are on.
   shuffle a whole folder or playlist, and search within it.
 - The bar has shuffle, repeat (all or one), seek and volume, and the Windows media keys and
   now-playing panel control it. The queue and volume are remembered. Settings > Plugins > Music
-  sets the bar fixed along the bottom or floating.
+  sets the bar fixed along the bottom, floating, or in Deck's footer: there, play/pause and the
+  track's title sit in the footer, and a click on the title opens the player as its menu.
 
 ## Listen together
 
