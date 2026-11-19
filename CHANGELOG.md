@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0 (2026-11-19)
+
+- The player can sit in Deck's footer (Settings > Plugins > Music > Footer): play/pause and the track's
+  title, which goes round in a fixed width while it plays, and a click opens the player as the
+  footer's menu, with the cover, seek bar, controls, volume and Listen together. In a narrow window
+  the title gives way first and play/pause stays. Needs Deck 1.18.7.
+- The Music tab fills its pane, without the margin around it.
+- Switching from the floating player to the bar no longer leaves the bar where the card had been
+  dragged.
+
 ## 1.4.1 (2026-11-12)
 
 - Listen together asks again for a track that stalled, instead of staying silent.

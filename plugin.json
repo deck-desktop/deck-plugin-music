@@ -5,8 +5,8 @@
   "icon": "Music",
   "color": "#fb7185",
   "fullBleed": true,
-  "version": "1.4.1",
-  "minDeck": "1.15.0",
+  "version": "1.5.0",
+  "minDeck": "1.18.7",
   "permissions": [
     "files",
     "processes",
