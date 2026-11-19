@@ -35,7 +35,7 @@ function Marquee({ text, moving }: { text: string; moving: boolean }) {
   }, [text]);
   const go = size.shift > 0 && moving && !still;
   return (
-    <span ref={box} className="block w-[160px] overflow-hidden"
+    <span ref={box} className="block w-[160px] overflow-hidden [[data-footer-tight]_&]:hidden"
       // Faded at its edges, so the words come and go rather than being cut.
       style={{ maskImage: "linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 14px), transparent)" }}>
       <motion.span className="inline-flex whitespace-nowrap" animate={{ x: go ? [0, -size.shift] : 0 }}
