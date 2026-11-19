@@ -14,29 +14,34 @@ import { usePlacement } from "./placement";
 /** Space between the title and its next copy as it goes round. */
 const GAP = 32;
 
-/** The title in the footer: as it is when it fits; otherwise going round, two copies one after the
- *  other, while the track plays (stopped while paused, and for reduced motion). Measured in an
- *  effect as the title or the room changes, never in render. */
+/** The title in the footer, in a fixed width (the footer does not jump as titles change), going
+ *  round while the track plays: two copies one after the other, the second as far after the first
+ *  as the box is wide at least, so a short title loops as cleanly as a long one. Stopped while
+ *  paused, and for reduced motion. Measured in an effect as the title or the room changes. */
 function Marquee({ text, moving }: { text: string; moving: boolean }) {
   const box = useRef<HTMLSpanElement>(null), one = useRef<HTMLSpanElement>(null);
-  const [shift, setShift] = useState(0);
+  // How far one turn moves (the title and the space after it), and the title's own width.
+  const [size, setSize] = useState({ shift: 0, w: 0 });
   const still = useReducedMotion();
   useEffect(() => {
-    const measure = () => { const b = box.current, o = one.current; if (b && o) setShift(o.offsetWidth > b.clientWidth + 1 ? o.offsetWidth + GAP : 0); };
+    const measure = () => {
+      const b = box.current, o = one.current;
+      if (b && o) setSize({ shift: Math.max(o.offsetWidth + GAP, b.clientWidth), w: o.offsetWidth });
+    };
     measure();
     const ro = new ResizeObserver(measure);
     if (box.current) ro.observe(box.current);
     return () => ro.disconnect();
   }, [text]);
-  const go = shift > 0 && moving && !still;
+  const go = size.shift > 0 && moving && !still;
   return (
-    <span ref={box} className="block max-w-[160px] overflow-hidden"
-      // Faded at its edges while it goes round, so the words come and go rather than being cut.
-      style={shift ? { maskImage: "linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 14px), transparent)" } : undefined}>
-      <motion.span className="inline-flex whitespace-nowrap" animate={{ x: go ? [0, -shift] : 0 }}
-        transition={go ? { duration: shift / 28, ease: "linear", repeat: Infinity } : { duration: 0.4 }}>
+    <span ref={box} className="block w-[160px] overflow-hidden"
+      // Faded at its edges, so the words come and go rather than being cut.
+      style={{ maskImage: "linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 14px), transparent)" }}>
+      <motion.span className="inline-flex whitespace-nowrap" animate={{ x: go ? [0, -size.shift] : 0 }}
+        transition={go ? { duration: size.shift / 28, ease: "linear", repeat: Infinity } : { duration: 0.4 }}>
         <span ref={one}>{text}</span>
-        {shift > 0 && <span aria-hidden style={{ paddingLeft: GAP }}>{text}</span>}
+        <span aria-hidden style={{ paddingLeft: size.shift - size.w }}>{text}</span>
       </motion.span>
     </span>
   );
