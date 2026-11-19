@@ -14,7 +14,8 @@ function invites(t: TeamView, listening: Set<string>): MenuEntry[] {
   ];
 }
 
-export default function ListenButton() {
+/** `small`: the footer menu's size, beside its other small buttons. */
+export default function ListenButton({ small }: { small?: boolean } = {}) {
   const lv = useSyncExternalStore(subscribeListen, listenView);
   const teams = useSyncExternalStore(subscribeTeams, teamsView);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -43,9 +44,9 @@ export default function ListenButton() {
   return (
     <>
       <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top }); }} title={title} aria-label={title}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors hover:bg-white/5"
+        className={"grid shrink-0 place-items-center transition-colors hover:bg-white/5 " + (small ? "size-7 rounded-md" : "h-8 w-8 rounded-lg")}
         style={{ color: on ? "var(--accent)" : "var(--text-muted)" }}>
-        <Users size={15} />
+        <Users size={small ? 14 : 15} />
       </button>
       {menu && <ContextMenu x={menu.x} y={menu.y} up items={items} onClose={() => setMenu(null)} />}
     </>
